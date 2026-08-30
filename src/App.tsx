@@ -14,21 +14,12 @@ import { SettingsPage } from './pages/SettingsPage';
 import { LoginPage } from './pages/LoginPage';
 
 export function App() {
-  const { session, setSession } = useFranchiseStore();
+  const { session, initAuth } = useFranchiseStore();
 
   useEffect(() => {
-    const storedFraId = localStorage.getItem('franchise_id');
-    if (storedFraId && !session) {
-      setSession({
-        uid: 'fra_usr_01',
-        email: 'franchise.rjn@olivepizza.in',
-        franchiseId: storedFraId,
-        franchiseName: 'Olive Pizza — Rajnandgaon Franchise',
-        role: 'franchise_owner',
-        branchIds: ['main_branch', 'durg_branch']
-      });
-    }
-  }, [session, setSession]);
+    const unsub = initAuth();
+    return () => unsub();
+  }, []);
 
   return (
     <BrowserRouter>

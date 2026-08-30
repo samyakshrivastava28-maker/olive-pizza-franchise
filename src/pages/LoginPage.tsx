@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useFranchiseStore } from '../store/franchiseStore';
 import { auth, db } from '../lib/firebase';
 import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { Building2, Key, Sparkles, User, ShieldCheck } from 'lucide-react';
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { Key, Sparkles, User, ShieldCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export const LoginPage: React.FC = () => {
@@ -15,28 +15,76 @@ export const LoginPage: React.FC = () => {
   const setSession = useFranchiseStore((s) => s.setSession);
   const navigate = useNavigate();
 
-  const verifyFranchiseRole = async (userEmail: string, uid: string, displayName?: string | null) => {
+  const formatAuthError = (err: any) => {
+    const code = err?.code || '';
+    switch (code) {
+      case 'auth/invalid-credential':
+      case 'auth/wrong-password':
+      case 'auth/user-not-found':
+        return 'Invalid email or password. Please check your credentials.';
+      case 'auth/invalid-email':
+        return 'Please enter a valid email address.';
+      case 'auth/user-disabled':
+        return 'This franchise account has been disabled. Please contact Olive Pizza administration.';
+      case 'auth/too-many-requests':
+        return 'Too many failed login attempts. Please try again later.';
+      case 'auth/network-request-failed':
+        return 'Network error. Please check your internet connection.';
+      case 'auth/popup-closed-by-user':
+        return '';
+      default:
+        return err?.message || 'Franchise login failed. Please try again.';
+    }
+  };
+
+  const verifyFranchiseRole = async (userEmail: string, uid: string) => {
     const normalized = userEmail.toLowerCase().trim();
     const isGlobalOwner = normalized === 'olivepizzarjn@gmail.com' || normalized === 'webhub2811@gmail.com' || normalized === 'olivepizzamaker@gmail.com';
 
     let isAuthorized = isGlobalOwner;
     let franchiseId = 'fra_primary';
     let franchiseName = 'Olive Pizza — Rajnandgaon Franchise';
-    let role = isGlobalOwner ? 'franchise_owner' : 'franchise_manager';
+    let role = isGlobalOwner ? 'owner' : 'franchise_manager';
     let branchIds = ['main_branch', 'durg_branch'];
 
     try {
-      const q = query(collection(db, 'franchise_users'), where('email', '==', normalized));
-      const snap = await getDocs(q).catch(() => null);
-      if (snap && !snap.empty) {
-        const data = snap.docs[0].data();
+      const userDocSnap = await getDoc(doc(db, 'users', uid));
+      if (userDocSnap.exists()) {
+        const data = userDocSnap.data();
         franchiseId = data.franchiseId || franchiseId;
         franchiseName = data.franchiseName || franchiseName;
         role = data.role || role;
         branchIds = data.branchIds || branchIds;
-        isAuthorized = true;
+        if (['franchise_owner', 'franchise_manager', 'owner', 'admin', 'developer'].includes(data.role)) {
+          isAuthorized = true;
+        }
       }
     } catch {}
+
+    if (!isAuthorized) {
+      try {
+        const fraDocSnap = await getDoc(doc(db, 'franchise_users', uid));
+        if (fraDocSnap.exists()) {
+          const data = fraDocSnap.data();
+          franchiseId = data.franchiseId || franchiseId;
+          franchiseName = data.franchiseName || franchiseName;
+          role = data.role || role;
+          branchIds = data.branchIds || branchIds;
+          isAuthorized = true;
+        } else {
+          const q = query(collection(db, 'franchise_users'), where('email', '==', normalized));
+          const snap = await getDocs(q).catch(() => null);
+          if (snap && !snap.empty) {
+            const data = snap.docs[0].data();
+            franchiseId = data.franchiseId || franchiseId;
+            franchiseName = data.franchiseName || franchiseName;
+            role = data.role || role;
+            branchIds = data.branchIds || branchIds;
+            isAuthorized = true;
+          }
+        }
+      } catch {}
+    }
 
     if (!isAuthorized) {
       throw new Error('Access denied. This portal is for authorized Olive Pizza franchise owners and managers only.');
@@ -47,8 +95,9 @@ export const LoginPage: React.FC = () => {
       email: normalized,
       franchiseId,
       franchiseName,
-      role: role as 'franchise_owner' | 'franchise_manager',
+      role: role as any,
       branchIds,
+      isAuthenticated: true
     });
     localStorage.setItem('franchise_id', franchiseId);
   };
@@ -62,53 +111,19 @@ export const LoginPage: React.FC = () => {
     setLoading(true);
 
     try {
-      let uid = 'fra_usr_' + Date.now();
-      try {
-        const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
-        uid = cred.user.uid;
-      } catch (authErr) {
-        console.warn('[Franchise Auth] Direct sign-in warning:', authErr);
-      }
-
-      await verifyFranchiseRole(email, uid);
+      const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
+      await verifyFranchiseRole(cred.user.email || email.trim(), cred.user.uid);
       toast.success('Welcome to Franchise Management! 🍕');
       navigate('/dashboard');
     } catch (err: any) {
-      toast.error(err.message || 'Franchise login failed.');
+      const msg = formatAuthError(err);
+      if (msg) toast.error(msg);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleQuickOwnerBypass = (fId: string, fName: string) => {
-      setSession({
-        uid: 'fra_owner_01',
-        email: 'olivepizzarjn@gmail.com',
-        franchiseId: fId,
-        franchiseName: fName,
-        role: 'owner',
-        branchIds: ['main_branch', 'durg_branch']
-      });
-      localStorage.setItem('franchise_id', fId);
-      toast.success(`Logged in as Master Owner scoped to ${fName}`);
-      navigate('/dashboard');
-    };
-
-    const handleQuickManagerBypass = (fId: string, fName: string) => {
-      setSession({
-        uid: 'fra_mgr_01',
-        email: 'manager.rjn@olivepizza.in',
-        franchiseId: fId,
-        franchiseName: fName,
-        role: 'franchise_manager',
-        branchIds: ['main_branch']
-      });
-      localStorage.setItem('franchise_id', fId);
-      toast.success(`Logged in as Franchise Manager for ${fName}`);
-      navigate('/dashboard');
-    };
-
-    const handleGoogleSignIn = async () => {
+  const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
     try {
       const provider = new GoogleAuthProvider();
@@ -118,13 +133,12 @@ export const LoginPage: React.FC = () => {
 
       if (!user.email) throw new Error('Google account missing email address.');
 
-      await verifyFranchiseRole(user.email, user.uid, user.displayName);
+      await verifyFranchiseRole(user.email, user.uid);
       toast.success(`Welcome back, ${user.displayName || 'Franchise Partner'}! 🍕`);
       navigate('/dashboard');
     } catch (err: any) {
-      if (err.code !== 'auth/popup-closed-by-user') {
-        toast.error('Google Sign-In failed: ' + (err.message || 'Authentication error'));
-      }
+      const msg = formatAuthError(err);
+      if (msg) toast.error(msg);
     } finally {
       setGoogleLoading(false);
     }
@@ -217,7 +231,7 @@ export const LoginPage: React.FC = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-black text-sm rounded-xl transition-all shadow-lg shadow-amber-500/20 active:scale-98 flex items-center justify-center gap-2 mt-2 disabled:opacity-50"
+            className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-black text-sm rounded-xl transition-all shadow-lg shadow-amber-500/20 active:scale-98 flex items-center justify-center gap-2 mt-2 disabled:opacity-50 cursor-pointer"
           >
             <Sparkles size={16} /> {loading ? 'Authenticating...' : 'Sign In to Franchise Portal'}
           </button>

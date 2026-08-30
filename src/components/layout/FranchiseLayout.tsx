@@ -17,8 +17,10 @@ import {
 } from 'lucide-react';
 import { useFranchiseStore } from '../../store/franchiseStore';
 
+import { Navigate } from 'react-router-dom';
+
 export const FranchiseLayout: React.FC = () => {
-  const { session, setSession, setBranches, setTerminals } = useFranchiseStore();
+  const { session, isAuthChecking, isAuthorized, logout, setSession, setBranches, setTerminals } = useFranchiseStore();
   const navigate = useNavigate();
 
   const franchises = [
@@ -32,9 +34,8 @@ export const FranchiseLayout: React.FC = () => {
     session?.email === 'olivepizzarjn@gmail.com' || 
     session?.email === 'webhub2811@gmail.com';
 
-  const handleLogout = () => {
-    setSession(null);
-    localStorage.removeItem('franchise_id');
+  const handleLogout = async () => {
+    await logout();
     navigate('/login');
   };
 
@@ -53,6 +54,21 @@ export const FranchiseLayout: React.FC = () => {
       isAuthenticated: true
     });
   };
+
+  if (isAuthChecking) {
+    return (
+      <div className="h-screen w-screen bg-slate-950 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-3 border-amber-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-xs text-slate-400 font-medium">Verifying Franchise Session...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthorized || !session) {
+    return <Navigate to="/login" replace />;
+  }
 
   return (
     <div className="flex h-screen w-screen bg-slate-950 text-slate-100 overflow-hidden">
