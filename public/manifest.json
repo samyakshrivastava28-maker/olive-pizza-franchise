@@ -1,0 +1,16 @@
+{
+  "short_name": "Franchise POS",
+  "name": "Olive Pizza Franchise Management",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#020617",
+  "theme_color": "#F59E0B",
+  "display": "standalone",
+  "orientation": "portrait"
+}
