@@ -1,6 +1,6 @@
 import { auth } from './firebase';
 
-export const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+export const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_BASE_URL || 'https://olivepizza-owner.onrender.com';
 
 export async function fetchApi(endpoint: string, options: RequestInit = {}): Promise<any> {
   let token: string | undefined;
