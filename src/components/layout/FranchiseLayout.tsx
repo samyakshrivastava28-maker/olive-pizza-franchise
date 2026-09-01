@@ -1,5 +1,5 @@
 import React from 'react';
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { Outlet, NavLink, useNavigate, Navigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   Store, 
@@ -15,9 +15,8 @@ import {
   ChevronDown,
   ArrowLeft
 } from 'lucide-react';
+import { AppLogo } from '../common/AppLogo';
 import { useFranchiseStore } from '../../store/franchiseStore';
-
-import { Navigate } from 'react-router-dom';
 
 export const FranchiseLayout: React.FC = () => {
   const { session, isAuthChecking, isAuthorized, logout, setSession, setBranches, setTerminals } = useFranchiseStore();
@@ -76,16 +75,8 @@ export const FranchiseLayout: React.FC = () => {
       <aside className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col justify-between shrink-0">
         <div>
           {/* Brand Header */}
-          <div className="p-5 border-b border-slate-800 flex items-center gap-3">
-            <div className="w-10 h-10 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center justify-center text-xl">
-              🍕
-            </div>
-            <div>
-              <h2 className="font-black text-sm text-white tracking-wide uppercase">OLIVE PIZZA</h2>
-              <span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
-                FRANCHISE SUITE
-              </span>
-            </div>
+          <div className="p-4 border-b border-slate-800 flex items-center">
+            <AppLogo variant="full" size="md" subtitle="Franchise Management" />
           </div>
 
           {/* Franchise Context Card */}

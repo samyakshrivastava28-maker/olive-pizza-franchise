@@ -5,6 +5,7 @@ import { auth, db } from '../lib/firebase';
 import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { Key, Sparkles, User, ShieldCheck } from 'lucide-react';
+import { AppLogo } from '../components/common/AppLogo';
 import toast from 'react-hot-toast';
 
 export const LoginPage: React.FC = () => {
@@ -148,14 +149,9 @@ export const LoginPage: React.FC = () => {
     <div className="min-h-screen w-screen bg-slate-950 text-white flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl space-y-6">
         {/* Brand Header */}
-        <div className="text-center space-y-2">
-          <div className="w-14 h-14 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-2xl flex items-center justify-center mx-auto text-2xl">
-            🍕
-          </div>
-          <h1 className="font-black text-2xl text-white uppercase tracking-wider">
-            OLIVE PIZZA <span className="text-amber-400">FRANCHISE</span>
-          </h1>
-          <p className="text-xs text-slate-400">Franchise Owner & Multi-Branch Portal</p>
+        <div className="flex flex-col items-center text-center space-y-3">
+          <AppLogo variant="full" size="xl" subtitle="Franchise Management" />
+          <p className="text-xs text-slate-400 pt-1">Franchise Owner & Multi-Branch Portal</p>
         </div>
 
         {/* Continue with Google Button */}
