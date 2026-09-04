@@ -9,6 +9,7 @@ import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firesto
 import { Key, Sparkles, User, ShieldCheck } from 'lucide-react';
 import { AppLogo } from '../components/common/AppLogo';
 import toast from 'react-hot-toast';
+import { requestPostLoginNotificationPermissions } from '../services/notificationPermissionService';
 
 export const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -117,6 +118,7 @@ export const LoginPage: React.FC = () => {
       const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
       await verifyFranchiseRole(cred.user.email || email.trim(), cred.user.uid);
       toast.success('Welcome to Franchise Management! 🍕');
+      requestPostLoginNotificationPermissions().catch(() => {});
       navigate('/dashboard');
     } catch (err: any) {
       const msg = formatAuthError(err);
@@ -148,6 +150,7 @@ export const LoginPage: React.FC = () => {
 
       await verifyFranchiseRole(user.email, user.uid);
       toast.success(`Welcome back, ${user.displayName || 'Franchise Partner'}! 🍕`);
+      requestPostLoginNotificationPermissions().catch(() => {});
       navigate('/dashboard');
     } catch (err: any) {
       const msg = formatAuthError(err);
