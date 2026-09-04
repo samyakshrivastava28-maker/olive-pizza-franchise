@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useFranchiseStore } from '../store/franchiseStore';
 import { auth, db } from '../lib/firebase';
-import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { signInWithEmailAndPassword, signInWithPopup, signInWithCredential, GoogleAuthProvider } from 'firebase/auth';
+import { Capacitor } from '@capacitor/core';
+import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { Key, Sparkles, User, ShieldCheck } from 'lucide-react';
 import { AppLogo } from '../components/common/AppLogo';
@@ -127,12 +129,22 @@ export const LoginPage: React.FC = () => {
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
     try {
-      const provider = new GoogleAuthProvider();
-      provider.setCustomParameters({ prompt: 'select_account' });
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
+      let user: any = null;
+      if (Capacitor.isNativePlatform()) {
+        const res = await FirebaseAuthentication.signInWithGoogle();
+        const idToken = res.credential?.idToken;
+        if (!idToken) throw new Error('Failed to get Google ID token on mobile device.');
+        const credential = GoogleAuthProvider.credential(idToken);
+        const userCredential = await signInWithCredential(auth, credential);
+        user = userCredential.user;
+      } else {
+        const provider = new GoogleAuthProvider();
+        provider.setCustomParameters({ prompt: 'select_account' });
+        const result = await signInWithPopup(auth, provider);
+        user = result.user;
+      }
 
-      if (!user.email) throw new Error('Google account missing email address.');
+      if (!user?.email) throw new Error('Google account missing email address.');
 
       await verifyFranchiseRole(user.email, user.uid);
       toast.success(`Welcome back, ${user.displayName || 'Franchise Partner'}! 🍕`);
