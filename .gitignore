@@ -1,10 +1,11 @@
-﻿# Dependencies
+# Dependencies
 node_modules/
 .pnp
 .pnp.js
 
 # Build & Output
 dist/
+dist-electron/
 dist-ssr/
 build/
 coverage/
