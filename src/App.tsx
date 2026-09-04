@@ -12,6 +12,7 @@ import { DeliveryManagementPage } from './pages/DeliveryManagementPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { LoginPage } from './pages/LoginPage';
+import FranchisePushNotificationManager from './services/FranchisePushNotificationManager';
 
 export function App() {
   const { session, initAuth } = useFranchiseStore();
@@ -23,6 +24,7 @@ export function App() {
 
   return (
     <BrowserRouter>
+      <FranchisePushNotificationManager />
       <Toaster
         position="top-right"
         toastOptions={{
