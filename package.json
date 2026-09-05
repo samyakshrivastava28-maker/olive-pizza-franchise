@@ -14,7 +14,7 @@
     "build:mac": "npm run build && electron-builder --mac --config electron-builder.json"
   },
   "dependencies": {
-    "@capacitor-firebase/authentication": "^8.3.0",
+    "@capacitor-firebase/authentication": "^7.5.0",
     "@capacitor/android": "^7.6.8",
     "@capacitor/cli": "^7.6.8",
     "@capacitor/core": "^7.6.8",
