@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { onAuthStateChanged, signOut, type User } from 'firebase/auth';
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
-import { auth, db } from '../lib/firebase';
+import { auth } from '../lib/firebase';
+import { getApiUrl } from '../lib/api';
 import { FranchiseSession, POSTerminal, Branch } from '../types/franchise';
 
 interface FranchiseState {
@@ -9,6 +9,9 @@ interface FranchiseState {
   session: FranchiseSession | null;
   isAuthChecking: boolean;
   isAuthorized: boolean;
+  restrictedReason: string | null;
+  restrictedEmail: string | null;
+  clearRestricted: () => void;
   branches: Branch[];
   terminals: POSTerminal[];
   
@@ -50,6 +53,9 @@ export const useFranchiseStore = create<FranchiseState>((set) => ({
   session: null,
   isAuthChecking: true,
   isAuthorized: false,
+  restrictedReason: null,
+  restrictedEmail: null,
+  clearRestricted: () => set({ restrictedReason: null, restrictedEmail: null }),
   branches: DEFAULT_BRANCHES,
   terminals: [],
   setSession: (session) => set({ session, isAuthorized: !!session }),
@@ -63,99 +69,101 @@ export const useFranchiseStore = create<FranchiseState>((set) => ({
           user: null,
           session: null,
           isAuthChecking: false,
-          isAuthorized: false
+          isAuthorized: false,
+          restrictedReason: null,
+          restrictedEmail: null
         });
         return;
       }
 
+      const emailLower = (firebaseUser.email || '').toLowerCase().trim();
+
       try {
-        const emailLower = (firebaseUser.email || '').toLowerCase().trim();
-        const isMasterOwner = emailLower === 'olivepizzarjn@gmail.com' || emailLower === 'webhub2811@gmail.com' || emailLower === 'olivepizzamaker@gmail.com';
+        const idToken = await firebaseUser.getIdToken();
+        const resp = await fetch(getApiUrl('api/auth/authorize-app'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`
+          },
+          body: JSON.stringify({
+            targetApp: 'FRANCHISE_MANAGER'
+          })
+        });
 
-        let franchiseId = 'fra_primary';
-        let franchiseName = 'Olive Pizza — Rajnandgaon Franchise';
-        let role = isMasterOwner ? 'owner' : 'franchise_manager';
-        let branchIds = ['main_branch', 'durg_branch'];
-        let isAuthorized = isMasterOwner;
+        const authData = await resp.json().catch(() => null);
 
-        // 1. Try reading doc(db, 'users', uid)
-        try {
-          const userDocSnap = await getDoc(doc(db, 'users', firebaseUser.uid));
-          if (userDocSnap.exists()) {
-            const data = userDocSnap.data();
-            if (data.franchiseId) franchiseId = data.franchiseId;
-            if (data.franchiseName) franchiseName = data.franchiseName;
-            if (data.role) role = data.role;
-            if (data.branchIds) branchIds = data.branchIds;
-            if (['franchise_owner', 'franchise_manager', 'owner', 'admin', 'developer'].includes(data.role)) {
-              isAuthorized = true;
-            }
-          }
-        } catch (e) {
-          console.warn('[FranchiseStore] User doc lookup notice:', e);
-        }
-
-        // 2. Also check franchise_users collection
-        if (!isAuthorized) {
-          try {
-            const fraDocSnap = await getDoc(doc(db, 'franchise_users', firebaseUser.uid));
-            if (fraDocSnap.exists()) {
-              const data = fraDocSnap.data();
-              franchiseId = data.franchiseId || franchiseId;
-              franchiseName = data.franchiseName || franchiseName;
-              role = data.role || 'franchise_manager';
-              branchIds = data.branchIds || branchIds;
-              isAuthorized = true;
-            } else {
-              const q = query(collection(db, 'franchise_users'), where('email', '==', emailLower));
-              const snap = await getDocs(q).catch(() => null);
-              if (snap && !snap.empty) {
-                const data = snap.docs[0].data();
-                franchiseId = data.franchiseId || franchiseId;
-                franchiseName = data.franchiseName || franchiseName;
-                role = data.role || 'franchise_manager';
-                branchIds = data.branchIds || branchIds;
-                isAuthorized = true;
-              }
-            }
-          } catch (e) {
-            console.warn('[FranchiseStore] Franchise doc lookup notice:', e);
-          }
-        }
-
-        if (isAuthorized) {
+        if (resp.ok && authData?.authorized) {
+          const u = authData.user;
           const newSession: FranchiseSession = {
             uid: firebaseUser.uid,
             email: emailLower,
-            franchiseId,
-            franchiseName,
-            role: role as any,
-            branchIds,
+            franchiseId: u.franchiseId || 'fra_primary',
+            franchiseName: u.franchiseName || 'Olive Pizza — Rajnandgaon Franchise',
+            role: u.role as any,
+            branchIds: u.branchIds || ['main_branch', 'durg_branch'],
             isAuthenticated: true
           };
-          localStorage.setItem('franchise_id', franchiseId);
+          localStorage.setItem('franchise_id', newSession.franchiseId);
           set({
             user: firebaseUser,
             session: newSession,
             isAuthChecking: false,
-            isAuthorized: true
+            isAuthorized: true,
+            restrictedReason: null,
+            restrictedEmail: null
           });
         } else {
+          // Unauthorized account — wipe session and enforce immediate sign out
+          const denialReason = authData?.reason || 'This account is not authorized to use this Olive Pizza application.';
+          console.warn('[FranchiseStore] Access restricted for account:', emailLower, denialReason);
+
+          await signOut(auth).catch(() => {});
+          localStorage.removeItem('franchise_id');
+          sessionStorage.clear();
+
           set({
-            user: firebaseUser,
+            user: null,
             session: null,
             isAuthChecking: false,
-            isAuthorized: false
+            isAuthorized: false,
+            restrictedReason: denialReason,
+            restrictedEmail: emailLower
           });
         }
-      } catch (err) {
-        console.error('[FranchiseStore] Auth initialization error:', err);
-        set({
-          user: firebaseUser,
-          session: null,
-          isAuthChecking: false,
-          isAuthorized: false
-        });
+      } catch (err: any) {
+        console.error('[FranchiseStore] Auth handshake network error:', err);
+
+        const isMasterOwner = emailLower === 'olivepizzarjn@gmail.com' || emailLower === 'webhub2811@gmail.com' || emailLower === 'olivepizzamaker@gmail.com';
+        if (isMasterOwner) {
+          const fallbackSession: FranchiseSession = {
+            uid: firebaseUser.uid,
+            email: emailLower,
+            franchiseId: 'fra_primary',
+            franchiseName: 'Olive Pizza — Rajnandgaon Franchise',
+            role: 'owner',
+            branchIds: ['main_branch', 'durg_branch'],
+            isAuthenticated: true
+          };
+          set({
+            user: firebaseUser,
+            session: fallbackSession,
+            isAuthChecking: false,
+            isAuthorized: true,
+            restrictedReason: null,
+            restrictedEmail: null
+          });
+        } else {
+          await signOut(auth).catch(() => {});
+          set({
+            user: null,
+            session: null,
+            isAuthChecking: false,
+            isAuthorized: false,
+            restrictedReason: 'This account is not authorized to use this Olive Pizza application.',
+            restrictedEmail: emailLower
+          });
+        }
       }
     });
 

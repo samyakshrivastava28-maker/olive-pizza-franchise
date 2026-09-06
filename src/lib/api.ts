@@ -10,10 +10,7 @@ export function getApiBaseUrl(): string {
   if (import.meta.env.VITE_BACKEND_URL) {
     return import.meta.env.VITE_BACKEND_URL;
   }
-  if (import.meta.env.PROD) {
-    return PRODUCTION_BACKEND_URL;
-  }
-  return DEV_BACKEND_URL;
+  return PRODUCTION_BACKEND_URL;
 }
 
 export function getApiUrl(endpoint: string = ''): string {

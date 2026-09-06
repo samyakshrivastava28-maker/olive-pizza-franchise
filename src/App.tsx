@@ -12,15 +12,45 @@ import { DeliveryManagementPage } from './pages/DeliveryManagementPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { LoginPage } from './pages/LoginPage';
+import { AppRestrictedScreen } from './components/common/AppRestrictedScreen';
 import FranchisePushNotificationManager from './services/FranchisePushNotificationManager';
 
 export function App() {
-  const { session, initAuth } = useFranchiseStore();
+  const { session, isAuthChecking, restrictedReason, restrictedEmail, clearRestricted, logout, initAuth } = useFranchiseStore();
 
   useEffect(() => {
     const unsub = initAuth();
     return () => unsub();
   }, []);
+
+  if (isAuthChecking) {
+    return (
+      <div className="h-screen w-screen bg-[#070A10] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-3 border-amber-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-xs text-slate-400 font-medium">Verifying Franchise Session...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (restrictedReason) {
+    return (
+      <AppRestrictedScreen
+        appName="Olive Pizza Franchise Management"
+        userEmail={restrictedEmail || undefined}
+        reason={restrictedReason}
+        onRetry={() => {
+          clearRestricted();
+          initAuth();
+        }}
+        onSignOut={async () => {
+          clearRestricted();
+          await logout();
+        }}
+      />
+    );
+  }
 
   return (
     <BrowserRouter>
