@@ -17,6 +17,7 @@ import {
   FileSpreadsheet
 } from 'lucide-react';
 import { useFranchiseStore } from '../store/franchiseStore';
+import { Link } from 'react-router-dom';
 import { fetchApi } from '../lib/api';
 import toast from 'react-hot-toast';
 
@@ -78,12 +79,12 @@ export const DashboardPage: React.FC = () => {
   }, [session?.franchiseId]);
 
   return (
-    <div className="p-8 space-y-6 max-w-7xl mx-auto animate-in fade-in duration-150">
+    <div className="p-3.5 sm:p-5 lg:p-8 space-y-4 sm:space-y-6 max-w-7xl mx-auto animate-in fade-in duration-150">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="font-black text-2xl text-white tracking-tight">Franchise Operations Console</h1>
+          <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+            <h1 className="font-black text-xl sm:text-2xl text-white tracking-tight">Franchise Operations Console</h1>
             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/10 border border-amber-500/30 text-amber-400">
               {session?.franchiseName || 'Rajnandgaon Franchise'}
             </span>
@@ -96,7 +97,7 @@ export const DashboardPage: React.FC = () => {
         <button
           onClick={loadDashboardData}
           disabled={loading}
-          className="p-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded-xl text-xs flex items-center gap-1.5 transition-all self-start sm:self-auto cursor-pointer"
+          className="p-2.5 sm:px-3 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded-xl text-xs flex items-center gap-2 transition-all self-start sm:self-auto cursor-pointer min-h-[44px]"
         >
           <RefreshCw className={`w-3.5 h-3.5 text-amber-400 ${loading ? 'animate-spin' : ''}`} />
           <span>Refresh Live Metrics</span>
@@ -104,44 +105,44 @@ export const DashboardPage: React.FC = () => {
       </div>
 
       {/* Main KPI Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-1 shadow-sm">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 sm:p-5 space-y-1 shadow-sm">
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Today's Revenue</span>
-          <div className="font-mono font-black text-2xl text-amber-400">₹{metrics.todaySales.toLocaleString('en-IN')}</div>
-          <div className="text-[10px] text-emerald-400 font-bold flex items-center gap-1 pt-1">
-            <TrendingUp className="w-3 h-3" /> Live multi-branch rollup
+          <div className="font-mono font-black text-lg sm:text-2xl text-amber-400 truncate">₹{metrics.todaySales.toLocaleString('en-IN')}</div>
+          <div className="text-[10px] text-emerald-400 font-bold flex items-center gap-1 pt-1 truncate">
+            <TrendingUp className="w-3 h-3 shrink-0" /> Live multi-branch rollup
           </div>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-1 shadow-sm">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 sm:p-5 space-y-1 shadow-sm">
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Active Kitchen Orders</span>
-          <div className="font-mono font-black text-2xl text-white">{metrics.activeKitchenOrders}</div>
-          <div className="text-[10px] text-amber-400 font-mono flex items-center gap-1 pt-1">
-            <Clock className="w-3 h-3" /> In Prep / Out for Delivery
+          <div className="font-mono font-black text-lg sm:text-2xl text-white truncate">{metrics.activeKitchenOrders}</div>
+          <div className="text-[10px] text-amber-400 font-mono flex items-center gap-1 pt-1 truncate">
+            <Clock className="w-3 h-3 shrink-0" /> In Prep / Out for Delivery
           </div>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-1 shadow-sm">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 sm:p-5 space-y-1 shadow-sm">
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Operational POS</span>
-          <div className="font-mono font-black text-2xl text-emerald-400">{metrics.activeTerminals} Active</div>
-          <div className="text-[10px] text-slate-400 font-mono flex items-center gap-1 pt-1">
-            <Monitor className="w-3 h-3 text-slate-500" /> Across all branches
+          <div className="font-mono font-black text-lg sm:text-2xl text-emerald-400 truncate">{metrics.activeTerminals} Active</div>
+          <div className="text-[10px] text-slate-400 font-mono flex items-center gap-1 pt-1 truncate">
+            <Monitor className="w-3 h-3 text-slate-500 shrink-0" /> Across all branches
           </div>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-1 shadow-sm">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 sm:p-5 space-y-1 shadow-sm">
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Delivery Fleet</span>
-          <div className="font-mono font-black text-2xl text-sky-400">{metrics.activeRiders} Riders</div>
-          <div className="text-[10px] text-slate-400 font-mono flex items-center gap-1 pt-1">
-            <Bike className="w-3 h-3 text-slate-500" /> 100m Geo-Fence Active
+          <div className="font-mono font-black text-lg sm:text-2xl text-sky-400 truncate">{metrics.activeRiders} Riders</div>
+          <div className="text-[10px] text-slate-400 font-mono flex items-center gap-1 pt-1 truncate">
+            <Bike className="w-3 h-3 text-slate-500 shrink-0" /> 100m Geo-Fence Active
           </div>
         </div>
       </div>
 
       {/* Breakdown & Feeds Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* Channel Revenue Split */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-4">
           <h3 className="font-bold text-sm text-white flex items-center gap-2">
             <CreditCard className="w-4 h-4 text-amber-400" /> Revenue by Channel
           </h3>
@@ -169,7 +170,7 @@ export const DashboardPage: React.FC = () => {
 
           <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between text-xs">
             <div className="flex items-center gap-2">
-              <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+              <FileSpreadsheet className="w-4 h-4 text-emerald-400 shrink-0" />
               <span className="text-slate-300">Google Sheets Sync</span>
             </div>
             <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 uppercase">
@@ -179,7 +180,7 @@ export const DashboardPage: React.FC = () => {
         </div>
 
         {/* Low Stock & Inventory Warnings */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3">
           <h3 className="font-bold text-sm text-white flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 text-amber-400" /> Low Stock Alerts
           </h3>
@@ -200,32 +201,32 @@ export const DashboardPage: React.FC = () => {
         </div>
 
         {/* Quick Operations Actions */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3 md:col-span-2 lg:col-span-1">
           <h3 className="font-bold text-sm text-white flex items-center gap-2">
             <Boxes className="w-4 h-4 text-amber-400" /> Operational Shortcuts
           </h3>
           <div className="grid grid-cols-1 gap-2">
-            <a
-              href="/orders"
-              className="p-3 bg-slate-950 hover:bg-slate-800/80 border border-slate-800 rounded-xl flex items-center justify-between text-xs text-slate-300 hover:text-white transition"
+            <Link
+              to="/orders"
+              className="p-3 bg-slate-950 hover:bg-slate-800/80 border border-slate-800 rounded-xl flex items-center justify-between text-xs text-slate-300 hover:text-white transition min-h-[44px]"
             >
               <span>Manage Live Orders Stream</span>
               <ArrowUpRight className="w-4 h-4 text-amber-400" />
-            </a>
-            <a
-              href="/pos-terminals"
-              className="p-3 bg-slate-950 hover:bg-slate-800/80 border border-slate-800 rounded-xl flex items-center justify-between text-xs text-slate-300 hover:text-white transition"
+            </Link>
+            <Link
+              to="/pos-terminals"
+              className="p-3 bg-slate-950 hover:bg-slate-800/80 border border-slate-800 rounded-xl flex items-center justify-between text-xs text-slate-300 hover:text-white transition min-h-[44px]"
             >
               <span>Provision / Activate POS</span>
               <ArrowUpRight className="w-4 h-4 text-amber-400" />
-            </a>
-            <a
-              href="/reports"
-              className="p-3 bg-slate-950 hover:bg-slate-800/80 border border-slate-800 rounded-xl flex items-center justify-between text-xs text-slate-300 hover:text-white transition"
+            </Link>
+            <Link
+              to="/reports"
+              className="p-3 bg-slate-950 hover:bg-slate-800/80 border border-slate-800 rounded-xl flex items-center justify-between text-xs text-slate-300 hover:text-white transition min-h-[44px]"
             >
               <span>View Revenue & Sheets Sync</span>
               <ArrowUpRight className="w-4 h-4 text-amber-400" />
-            </a>
+            </Link>
           </div>
         </div>
       </div>

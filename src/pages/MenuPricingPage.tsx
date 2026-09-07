@@ -37,35 +37,35 @@ export const MenuPricingPage: React.FC = () => {
   });
 
   return (
-    <div className="p-8 space-y-6 max-w-7xl mx-auto animate-in fade-in duration-150">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="p-3.5 sm:p-5 lg:p-8 space-y-4 sm:space-y-6 max-w-7xl mx-auto animate-in fade-in duration-150">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="font-black text-2xl text-white">Menu & Store Inventory Overrides</h1>
+          <h1 className="font-black text-xl sm:text-2xl text-white">Menu & Store Inventory Overrides</h1>
           <p className="text-xs text-slate-400 mt-1">
             Toggle real-time stock availability and custom branch pricing overrides
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="relative">
+        <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+          <div className="relative flex-1 sm:flex-initial">
             <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               placeholder="Search pizza, sides..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 pr-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+              className="w-full sm:w-64 pl-9 pr-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 min-h-[44px]"
             />
           </div>
         </div>
       </div>
 
-      <div className="flex items-center gap-2 overflow-x-auto text-xs">
+      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 text-xs">
         {['ALL', 'Pizza', 'Sides', 'Desserts'].map(cat => (
           <button
             key={cat}
             onClick={() => setCategoryFilter(cat)}
-            className={`px-3.5 py-1.5 rounded-xl font-bold transition ${
+            className={`px-3.5 py-2 rounded-xl font-bold transition whitespace-nowrap min-h-[38px] cursor-pointer ${
               categoryFilter === cat
                 ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
                 : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
@@ -76,28 +76,28 @@ export const MenuPricingPage: React.FC = () => {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         {filteredItems.map(it => (
-          <div key={it.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-sm hover:border-slate-700 transition">
-            <div className="flex justify-between items-start">
-              <div>
-                <h4 className="font-bold text-white text-sm">{it.name}</h4>
+          <div key={it.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3 shadow-sm hover:border-slate-700 transition">
+            <div className="flex justify-between items-start gap-2">
+              <div className="min-w-0">
+                <h4 className="font-bold text-white text-sm sm:text-base truncate">{it.name}</h4>
                 <span className="text-[10px] text-amber-400 font-semibold">{it.category}</span>
               </div>
-              <span className="font-mono font-black text-amber-400 text-base">₹{it.price}</span>
+              <span className="font-mono font-black text-amber-400 text-base sm:text-lg shrink-0">₹{it.price}</span>
             </div>
 
-            <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
+            <div className="pt-2 border-t border-slate-800 flex items-center justify-between gap-2">
               <span className="text-xs text-slate-400">Stock Status:</span>
               <button
                 onClick={() => toggleAvailability(it.id, it.isAvailable)}
-                className={`px-3 py-1 rounded-full text-[10px] font-black uppercase flex items-center gap-1 transition cursor-pointer ${
+                className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase flex items-center gap-1.5 transition cursor-pointer min-h-[36px] ${
                   it.isAvailable
                     ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
                     : 'bg-red-500/10 text-red-400 border border-red-500/30'
                 }`}
               >
-                {it.isAvailable ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+                {it.isAvailable ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
                 <span>{it.isAvailable ? 'IN STOCK' : 'OUT OF STOCK'}</span>
               </button>
             </div>

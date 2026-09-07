@@ -4,7 +4,6 @@ import { useFranchiseStore } from '../store/franchiseStore';
 import { auth, db } from '../lib/firebase';
 import { signInWithEmailAndPassword, signInWithPopup, signInWithCredential, GoogleAuthProvider } from 'firebase/auth';
 import { Capacitor } from '@capacitor/core';
-import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { Key, Sparkles, User, ShieldCheck } from 'lucide-react';
 import { AppLogo } from '../components/common/AppLogo';
@@ -133,6 +132,7 @@ export const LoginPage: React.FC = () => {
     try {
       let user: any = null;
       if (Capacitor.isNativePlatform()) {
+        const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication');
         const res = await FirebaseAuthentication.signInWithGoogle();
         const idToken = res.credential?.idToken;
         if (!idToken) throw new Error('Failed to get Google ID token on mobile device.');
@@ -161,10 +161,10 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen w-screen bg-slate-950 text-white flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl space-y-6">
+    <div className="min-h-screen w-screen bg-slate-950 text-white flex flex-col items-center justify-center p-3.5 sm:p-6">
+      <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-8 shadow-2xl space-y-5 sm:space-y-6">
         {/* Brand Header */}
-        <div className="flex flex-col items-center text-center space-y-3">
+        <div className="flex flex-col items-center text-center space-y-2.5 sm:space-y-3">
           <AppLogo variant="full" size="xl" subtitle="Franchise Management" />
           <p className="text-xs text-slate-400 pt-1">Franchise Owner & Multi-Branch Portal</p>
         </div>

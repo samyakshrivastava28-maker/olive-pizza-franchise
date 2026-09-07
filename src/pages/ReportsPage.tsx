@@ -84,13 +84,13 @@ export const ReportsPage: React.FC = () => {
   };
 
   return (
-    <div className="p-8 space-y-6 max-w-7xl mx-auto animate-in fade-in duration-150">
+    <div className="p-3.5 sm:p-5 lg:p-8 space-y-4 sm:space-y-6 max-w-7xl mx-auto animate-in fade-in duration-150">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="font-black text-2xl text-white">Dedicated Franchise Financial Reports</h1>
-            <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono text-[11px] font-bold">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="font-black text-xl sm:text-2xl text-white">Dedicated Franchise Financial Reports</h1>
+            <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono text-[10px] sm:text-[11px] font-bold">
               ONE WORKBOOK PER FRANCHISE
             </span>
           </div>
@@ -99,40 +99,40 @@ export const ReportsPage: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto">
           {sheetsData.spreadsheetUrl && (
             <a
               href={sheetsData.spreadsheetUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs flex items-center gap-2 transition shadow-lg shadow-emerald-600/20 cursor-pointer"
+              className="flex-1 sm:flex-initial px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-lg shadow-emerald-600/20 cursor-pointer min-h-[44px]"
             >
-              <ExternalLink className="w-4 h-4" />
+              <ExternalLink className="w-4 h-4 shrink-0" />
               <span>Open Google Sheet</span>
             </a>
           )}
           <button
             onClick={handleTriggerSheetsSync}
             disabled={syncing}
-            className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-bold rounded-xl text-xs flex items-center gap-2 transition border border-slate-700 cursor-pointer"
+            className="flex-1 sm:flex-initial px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition border border-slate-700 cursor-pointer min-h-[44px]"
           >
-            <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-4 h-4 shrink-0 ${syncing ? 'animate-spin' : ''}`} />
             <span>{syncing ? 'Syncing...' : 'Sync Now'}</span>
           </button>
         </div>
       </div>
 
       {/* Google Sheets Dedicated Franchise Card */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-5">
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 space-y-4 sm:space-y-5 shadow-sm">
         <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
-              <FileSpreadsheet className="w-6 h-6" />
+          <div className="flex items-center gap-3 sm:gap-3.5">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+              <FileSpreadsheet className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-bold text-white text-lg">{sheetsData.spreadsheetName}</h3>
-                <span className="px-2.5 py-0.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-md text-[10px] font-mono font-bold">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                <h3 className="font-bold text-white text-base sm:text-lg truncate">{sheetsData.spreadsheetName}</h3>
+                <span className="px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-md text-[10px] font-mono font-bold">
                   {sheetsData.status === 'CONNECTED' ? '🟢 CONNECTED' : '⏳ PROVISIONING'}
                 </span>
               </div>
@@ -144,33 +144,33 @@ export const ReportsPage: React.FC = () => {
         </div>
 
         {/* Live Metrics Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-4 border-t border-slate-800/80 text-xs font-mono">
-          <div className="p-3.5 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 pt-4 border-t border-slate-800/80 text-xs font-mono">
+          <div className="p-3 sm:p-3.5 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
             <span className="text-slate-500 text-[10px] block uppercase font-sans">Active Reporting Month</span>
-            <span className="text-amber-400 font-bold text-sm block">{sheetsData.currentMonthTab.toUpperCase()}</span>
+            <span className="text-amber-400 font-bold text-xs sm:text-sm block truncate">{sheetsData.currentMonthTab.toUpperCase()}</span>
           </div>
 
-          <div className="p-3.5 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
+          <div className="p-3 sm:p-3.5 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
             <span className="text-slate-500 text-[10px] block uppercase font-sans">Spreadsheet ID</span>
-            <span className="text-slate-300 font-bold text-xs truncate block" title={sheetsData.spreadsheetId || 'Auto Generated'}>
+            <span className="text-slate-300 font-bold text-[11px] sm:text-xs truncate block" title={sheetsData.spreadsheetId || 'Auto Generated'}>
               {sheetsData.spreadsheetId ? (sheetsData.spreadsheetId.slice(0, 14) + '...') : 'Dedicated ID'}
             </span>
           </div>
 
-          <div className="p-3.5 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
+          <div className="p-3 sm:p-3.5 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
             <span className="text-slate-500 text-[10px] block uppercase font-sans">Pending Sync Queue</span>
-            <span className="text-emerald-400 font-bold text-sm block">{sheetsData.pendingSyncCount} records</span>
+            <span className="text-emerald-400 font-bold text-xs sm:text-sm block">{sheetsData.pendingSyncCount} records</span>
           </div>
 
-          <div className="p-3.5 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
+          <div className="p-3 sm:p-3.5 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
             <span className="text-slate-500 text-[10px] block uppercase font-sans">Last Realtime Sync</span>
-            <span className="text-slate-300 font-bold text-sm block">{sheetsData.lastSyncedAt}</span>
+            <span className="text-slate-300 font-bold text-xs sm:text-sm block truncate">{sheetsData.lastSyncedAt}</span>
           </div>
         </div>
       </div>
 
       {/* Tabs & Architecture Architecture Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
         {/* Core Workbook Tabs */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
           <div className="flex items-center gap-2 text-white font-bold text-sm">
