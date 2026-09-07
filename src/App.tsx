@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { useFranchiseStore } from './store/franchiseStore';
 import { FranchiseLayout } from './components/layout/FranchiseLayout';
@@ -53,7 +53,7 @@ export function App() {
   }
 
   return (
-    <BrowserRouter>
+    <HashRouter>
       <FranchisePushNotificationManager />
       <Toaster
         position="top-right"
@@ -90,7 +90,7 @@ export function App() {
 
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
-    </BrowserRouter>
+    </HashRouter>
   );
 }
 
