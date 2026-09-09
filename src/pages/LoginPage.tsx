@@ -2,11 +2,11 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useFranchiseStore } from '../store/franchiseStore';
 import { auth, db } from '../lib/firebase';
-import { signInWithEmailAndPassword, signInWithPopup, signInWithCredential, GoogleAuthProvider } from 'firebase/auth';
+import { signInWithEmailAndPassword, signInWithPopup, signInWithCredential, GoogleAuthProvider, signOut } from 'firebase/auth';
 import { Capacitor } from '@capacitor/core';
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { Key, Sparkles, User, ShieldCheck } from 'lucide-react';
 import { AppLogo } from '../components/common/AppLogo';
+import { getApiUrl } from '../lib/api';
 import toast from 'react-hot-toast';
 import { requestPostLoginNotificationPermissions } from '../services/notificationPermissionService';
 
@@ -40,69 +40,90 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  const verifyFranchiseRole = async (userEmail: string, uid: string) => {
+  const verifyFranchiseRole = async (firebaseUser: any) => {
+    const userEmail = firebaseUser.email || '';
     const normalized = userEmail.toLowerCase().trim();
+    const uid = firebaseUser.uid;
     const isGlobalOwner = normalized === 'olivepizzarjn@gmail.com' || normalized === 'webhub2811@gmail.com' || normalized === 'olivepizzamaker@gmail.com';
 
-    let isAuthorized = isGlobalOwner;
-    let franchiseId = 'fra_primary';
-    let franchiseName = 'Olive Pizza — Rajnandgaon Franchise';
-    let role = isGlobalOwner ? 'owner' : 'franchise_manager';
-    let branchIds = ['main_branch', 'durg_branch'];
+    let isAuthorized = false;
+    let denialReason = 'This account is not authorized to use the Olive Pizza Franchise Management portal.';
+    let sessionData: any = null;
 
     try {
-      const userDocSnap = await getDoc(doc(db, 'users', uid));
-      if (userDocSnap.exists()) {
-        const data = userDocSnap.data();
-        franchiseId = data.franchiseId || franchiseId;
-        franchiseName = data.franchiseName || franchiseName;
-        role = data.role || role;
-        branchIds = data.branchIds || branchIds;
-        if (['franchise_owner', 'franchise_manager', 'owner', 'admin', 'developer'].includes(data.role)) {
+      const idToken = await firebaseUser.getIdToken();
+      const resp = await fetch(getApiUrl('api/auth/authorize-app'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({
+          targetApp: 'FRANCHISE_MANAGER'
+        })
+      });
+
+      const authData = await resp.json().catch(() => null);
+
+      if (resp.ok && authData?.authorized) {
+        const u = authData.user;
+        isAuthorized = true;
+        sessionData = {
+          uid,
+          email: normalized,
+          franchiseId: u.franchiseId || 'fra_primary',
+          franchiseName: u.franchiseName || 'Olive Pizza — Rajnandgaon Franchise',
+          role: u.role as any,
+          branchIds: u.branchIds || ['main_branch', 'durg_branch'],
+          isAuthenticated: true
+        };
+      } else {
+        denialReason = authData?.reason || denialReason;
+        if (resp.status !== 403 && isGlobalOwner) {
           isAuthorized = true;
+          sessionData = {
+            uid,
+            email: normalized,
+            franchiseId: 'fra_primary',
+            franchiseName: 'Olive Pizza — Rajnandgaon Franchise',
+            role: 'owner',
+            branchIds: ['main_branch', 'durg_branch'],
+            isAuthenticated: true
+          };
         }
       }
-    } catch {}
-
-    if (!isAuthorized) {
-      try {
-        const fraDocSnap = await getDoc(doc(db, 'franchise_users', uid));
-        if (fraDocSnap.exists()) {
-          const data = fraDocSnap.data();
-          franchiseId = data.franchiseId || franchiseId;
-          franchiseName = data.franchiseName || franchiseName;
-          role = data.role || role;
-          branchIds = data.branchIds || branchIds;
-          isAuthorized = true;
-        } else {
-          const q = query(collection(db, 'franchise_users'), where('email', '==', normalized));
-          const snap = await getDocs(q).catch(() => null);
-          if (snap && !snap.empty) {
-            const data = snap.docs[0].data();
-            franchiseId = data.franchiseId || franchiseId;
-            franchiseName = data.franchiseName || franchiseName;
-            role = data.role || role;
-            branchIds = data.branchIds || branchIds;
-            isAuthorized = true;
-          }
-        }
-      } catch {}
+    } catch (netErr) {
+      console.warn('[LoginPage] Server check failed:', netErr);
+      if (isGlobalOwner) {
+        isAuthorized = true;
+        sessionData = {
+          uid,
+          email: normalized,
+          franchiseId: 'fra_primary',
+          franchiseName: 'Olive Pizza — Rajnandgaon Franchise',
+          role: 'owner',
+          branchIds: ['main_branch', 'durg_branch'],
+          isAuthenticated: true
+        };
+      }
     }
 
     if (!isAuthorized) {
-      throw new Error('Access denied. This portal is for authorized Olive Pizza franchise owners and managers only.');
+      await signOut(auth).catch(() => {});
+      localStorage.removeItem('franchise_id');
+      sessionStorage.clear();
+      useFranchiseStore.setState({
+        user: null,
+        session: null,
+        isAuthorized: false,
+        restrictedReason: denialReason,
+        restrictedEmail: normalized
+      });
+      throw new Error(denialReason);
     }
 
-    setSession({
-      uid,
-      email: normalized,
-      franchiseId,
-      franchiseName,
-      role: role as any,
-      branchIds,
-      isAuthenticated: true
-    });
-    localStorage.setItem('franchise_id', franchiseId);
+    setSession(sessionData);
+    localStorage.setItem('franchise_id', sessionData.franchiseId);
   };
 
   const handleEmailLogin = async (e: React.FormEvent) => {
@@ -115,7 +136,7 @@ export const LoginPage: React.FC = () => {
 
     try {
       const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
-      await verifyFranchiseRole(cred.user.email || email.trim(), cred.user.uid);
+      await verifyFranchiseRole(cred.user);
       toast.success('Welcome to Franchise Management! 🍕');
       requestPostLoginNotificationPermissions().catch(() => {});
       navigate('/dashboard');
@@ -148,7 +169,7 @@ export const LoginPage: React.FC = () => {
 
       if (!user?.email) throw new Error('Google account missing email address.');
 
-      await verifyFranchiseRole(user.email, user.uid);
+      await verifyFranchiseRole(user);
       toast.success(`Welcome back, ${user.displayName || 'Franchise Partner'}! 🍕`);
       requestPostLoginNotificationPermissions().catch(() => {});
       navigate('/dashboard');
