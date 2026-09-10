@@ -1,4 +1,4 @@
-﻿{
+{
   "appId": "in.olivepizza.franchise",
   "productName": "Olive Pizza Franchise",
   "npmRebuild": false,
@@ -25,7 +25,6 @@
   },
   "mac": {
     "target": [{ "target": "dmg", "arch": ["x64", "arm64"] }],
-    "artifactName": "OlivePizzaFranchise.${ext}",
     "category": "public.app-category.business",
     "icon": "electron/resources/icon.png"
   },
