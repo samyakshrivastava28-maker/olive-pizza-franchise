@@ -4,7 +4,7 @@ import { useFranchiseStore } from '../store/franchiseStore';
 import { auth, db } from '../lib/firebase';
 import { signInWithEmailAndPassword, signInWithPopup, signInWithCredential, GoogleAuthProvider, signOut } from 'firebase/auth';
 import { Capacitor } from '@capacitor/core';
-import { Key, Sparkles, User, ShieldCheck } from 'lucide-react';
+import { Key, Sparkles, User, ShieldCheck, Lock } from 'lucide-react';
 import { AppLogo } from '../components/common/AppLogo';
 import { getApiUrl } from '../lib/api';
 import toast from 'react-hot-toast';
@@ -15,7 +15,11 @@ export const LoginPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pinInput, setPinInput] = useState('');
+  const [pinLoading, setPinLoading] = useState(false);
   const setSession = useFranchiseStore((s) => s.setSession);
+  const verifyPin = useFranchiseStore((s) => s.verifyPin);
   const navigate = useNavigate();
 
   const formatAuthError = (err: any) => {
@@ -71,10 +75,10 @@ export const LoginPage: React.FC = () => {
         sessionData = {
           uid,
           email: normalized,
-          franchiseId: u.franchiseId || 'fra_primary',
+          franchiseId: u.franchiseId || 'fra_rajnandgaon',
           franchiseName: u.franchiseName || 'Olive Pizza — Rajnandgaon Franchise',
           role: u.role as any,
-          branchIds: u.branchIds || ['main_branch', 'durg_branch'],
+          branchIds: u.branchIds || ['main_branch'],
           isAuthenticated: true
         };
       } else {
@@ -84,25 +88,25 @@ export const LoginPage: React.FC = () => {
           sessionData = {
             uid,
             email: normalized,
-            franchiseId: 'fra_primary',
+            franchiseId: 'fra_rajnandgaon',
             franchiseName: 'Olive Pizza — Rajnandgaon Franchise',
             role: 'owner',
-            branchIds: ['main_branch', 'durg_branch'],
+            branchIds: ['main_branch'],
             isAuthenticated: true
           };
         }
       }
     } catch (netErr) {
-      console.warn('[LoginPage] Server check failed:', netErr);
+      console.warn('[LoginPage] Server check network error:', netErr);
       if (isGlobalOwner) {
         isAuthorized = true;
         sessionData = {
           uid,
           email: normalized,
-          franchiseId: 'fra_primary',
+          franchiseId: 'fra_rajnandgaon',
           franchiseName: 'Olive Pizza — Rajnandgaon Franchise',
           role: 'owner',
-          branchIds: ['main_branch', 'durg_branch'],
+          branchIds: ['main_branch'],
           isAuthenticated: true
         };
       }
@@ -124,6 +128,35 @@ export const LoginPage: React.FC = () => {
 
     setSession(sessionData);
     localStorage.setItem('franchise_id', sessionData.franchiseId);
+
+    // If role is manager (not owner), require PIN unlock before navigating
+    if (sessionData.role !== 'owner' && sessionData.role !== 'platform_owner') {
+      setShowPinModal(true);
+      return false;
+    }
+    return true;
+  };
+
+  const handlePinSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pinInput || pinInput.length < 4) {
+      toast.error('Please enter your 4 to 6 digit security PIN.');
+      return;
+    }
+    setPinLoading(true);
+    try {
+      const res = await verifyPin(pinInput);
+      if (res.success) {
+        toast.success('PIN verified! Unlocking franchise dashboard... 🍕');
+        setShowPinModal(false);
+        requestPostLoginNotificationPermissions().catch(() => {});
+        navigate('/dashboard');
+      } else {
+        toast.error(res.error || 'Incorrect PIN');
+      }
+    } finally {
+      setPinLoading(false);
+    }
   };
 
   const handleEmailLogin = async (e: React.FormEvent) => {
@@ -136,10 +169,12 @@ export const LoginPage: React.FC = () => {
 
     try {
       const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
-      await verifyFranchiseRole(cred.user);
-      toast.success('Welcome to Franchise Management! 🍕');
-      requestPostLoginNotificationPermissions().catch(() => {});
-      navigate('/dashboard');
+      const ready = await verifyFranchiseRole(cred.user);
+      if (ready) {
+        toast.success('Welcome to Franchise Management! 🍕');
+        requestPostLoginNotificationPermissions().catch(() => {});
+        navigate('/dashboard');
+      }
     } catch (err: any) {
       const msg = formatAuthError(err);
       if (msg) toast.error(msg);
@@ -169,10 +204,12 @@ export const LoginPage: React.FC = () => {
 
       if (!user?.email) throw new Error('Google account missing email address.');
 
-      await verifyFranchiseRole(user);
-      toast.success(`Welcome back, ${user.displayName || 'Franchise Partner'}! 🍕`);
-      requestPostLoginNotificationPermissions().catch(() => {});
-      navigate('/dashboard');
+      const ready = await verifyFranchiseRole(user);
+      if (ready) {
+        toast.success(`Welcome back, ${user.displayName || 'Franchise Partner'}! 🍕`);
+        requestPostLoginNotificationPermissions().catch(() => {});
+        navigate('/dashboard');
+      }
     } catch (err: any) {
       const msg = formatAuthError(err);
       if (msg) toast.error(msg);
@@ -276,6 +313,60 @@ export const LoginPage: React.FC = () => {
           </p>
         </div>
       </div>
+
+      {/* Security PIN Entry Modal */}
+      {showPinModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-5 text-center">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto text-amber-400">
+              <Lock className="w-6 h-6" />
+            </div>
+
+            <div>
+              <h3 className="text-lg font-black text-white">Security PIN Verification</h3>
+              <p className="text-xs text-slate-400 mt-1">
+                Enter your 4 to 6 digit manager security PIN to access this franchise terminal.
+              </p>
+            </div>
+
+            <form onSubmit={handlePinSubmit} className="space-y-4">
+              <input
+                type="password"
+                maxLength={6}
+                inputMode="numeric"
+                pattern="[0-9]*"
+                autoFocus
+                required
+                placeholder="••••"
+                value={pinInput}
+                onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ''))}
+                className="w-full bg-slate-950 border border-slate-700 rounded-2xl px-4 py-3.5 text-center text-2xl tracking-[0.5em] font-mono text-amber-400 focus:outline-none focus:border-amber-500"
+              />
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPinModal(false);
+                    setPinInput('');
+                    signOut(auth).catch(() => {});
+                  }}
+                  className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={pinLoading || pinInput.length < 4}
+                  className="flex-1 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl transition disabled:opacity-50 cursor-pointer shadow-lg shadow-amber-500/20"
+                >
+                  {pinLoading ? 'Verifying...' : 'Unlock'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

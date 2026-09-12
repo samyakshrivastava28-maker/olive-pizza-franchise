@@ -94,6 +94,8 @@ export const POSTerminalsPage: React.FC = () => {
     }
   };
 
+  const canManageTerminals = session?.role === 'owner' || (session?.role as string) === 'platform_owner' || session?.role === 'franchise_owner';
+
   return (
     <div className="p-3.5 sm:p-5 lg:p-8 space-y-4 sm:space-y-6 max-w-7xl mx-auto animate-in fade-in duration-150">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
@@ -105,13 +107,15 @@ export const POSTerminalsPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
-          <button
-            onClick={() => setIsRegisterOpen(true)}
-            className="flex-1 sm:flex-initial px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-lg shadow-amber-500/20 cursor-pointer min-h-[44px]"
-          >
-            <Plus className="w-4 h-4 shrink-0" />
-            <span>+ Provision POS Terminal</span>
-          </button>
+          {canManageTerminals && (
+            <button
+              onClick={() => setIsRegisterOpen(true)}
+              className="flex-1 sm:flex-initial px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-lg shadow-amber-500/20 cursor-pointer min-h-[44px]"
+            >
+              <Plus className="w-4 h-4 shrink-0" />
+              <span>+ Provision POS Terminal</span>
+            </button>
+          )}
           <button
             onClick={fetchTerminals}
             disabled={isLoading}
@@ -153,7 +157,7 @@ export const POSTerminalsPage: React.FC = () => {
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Today's Sales:</span>
-                <span className="text-amber-400 font-mono font-bold">₹{(t.todaySales || 14800).toLocaleString('en-IN')}</span>
+                <span className="text-amber-400 font-mono font-bold">₹{(t.todaySales || 0).toLocaleString('en-IN')}</span>
               </div>
             </div>
 
@@ -166,7 +170,7 @@ export const POSTerminalsPage: React.FC = () => {
                 <span>Show QR Code</span>
               </button>
 
-              {t.isActive !== false && t.status !== 'REVOKED' && (
+              {canManageTerminals && t.isActive !== false && t.status !== 'REVOKED' && (
                 <button
                   onClick={() => handleRevoke(t.terminalId || t.id)}
                   className="px-3 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 rounded-xl text-xs flex items-center justify-center gap-1 transition cursor-pointer min-h-[38px]"
