@@ -95,19 +95,60 @@ export const POSTerminalsPage: React.FC = () => {
   };
 
   const canManageTerminals = session?.role === 'owner' || (session?.role as string) === 'platform_owner' || session?.role === 'franchise_owner';
+  const hasActiveTerminal = terminals.some(t => t.isActive !== false && t.status !== 'REVOKED');
+  const [activeActivateModal, setActiveActivateModal] = useState<any | null>(null);
+  const [activationPin, setActivationPin] = useState('');
+  const [activating, setActivating] = useState(false);
+
+  const handleActivateWithPin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeActivateModal || !/^\d{4}$/.test(activationPin.trim())) {
+      toast.error('Enter a valid 4-digit Franchise PIN');
+      return;
+    }
+
+    setActivating(true);
+    const toastId = toast.loading('Verifying PIN and activating POS...');
+    try {
+      const fId = session?.franchiseId || 'fra_rajnandgaon';
+      const termId = activeActivateModal.terminalId || activeActivateModal.id;
+      const res = await fetchApi(`/api/franchises/${fId}/pos-terminals/${termId}/activate`, {
+        method: 'POST',
+        body: JSON.stringify({ pin: activationPin.trim() })
+      });
+
+      if (res && res.success) {
+        toast.success('POS Terminal activated successfully! 🍕', { id: toastId });
+        setActiveActivateModal(null);
+        setActivationPin('');
+        fetchTerminals();
+      } else {
+        toast.error(res?.error || 'Activation failed', { id: toastId });
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'Error activating terminal', { id: toastId });
+    } finally {
+      setActivating(false);
+    }
+  };
 
   return (
     <div className="p-3.5 sm:p-5 lg:p-8 space-y-4 sm:space-y-6 max-w-7xl mx-auto animate-in fade-in duration-150">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="font-black text-xl sm:text-2xl text-white">POS Terminals & Hardware Registry</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="font-black text-xl sm:text-2xl text-white">POS Terminal Management</h1>
+            <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
+              Max 1 POS per Franchise
+            </span>
+          </div>
           <p className="text-xs text-slate-400 mt-1">
-            Manage billing terminal activations, counter assignments, and live POS telemetry
+            Billing terminal credentials provisioned by Owner, activated by Franchise Manager with 4-digit PIN.
           </p>
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
-          {canManageTerminals && (
+          {canManageTerminals && !hasActiveTerminal && (
             <button
               onClick={() => setIsRegisterOpen(true)}
               className="flex-1 sm:flex-initial px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-lg shadow-amber-500/20 cursor-pointer min-h-[44px]"
@@ -138,11 +179,13 @@ export const POSTerminalsPage: React.FC = () => {
               </div>
 
               <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase shrink-0 ${
-                t.isActive !== false && t.status !== 'REVOKED'
+                t.activationStatus === 'PENDING_ACTIVATION'
+                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30 animate-pulse'
+                  : t.isActive !== false && t.status !== 'REVOKED'
                   ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
                   : 'bg-red-500/10 text-red-400 border border-red-500/30'
               }`}>
-                {t.isActive !== false && t.status !== 'REVOKED' ? 'ACTIVE' : 'REVOKED'}
+                {t.activationStatus === 'PENDING_ACTIVATION' ? 'PENDING ACTIVATION' : t.isActive !== false && t.status !== 'REVOKED' ? 'ACTIVE' : 'REVOKED'}
               </span>
             </div>
 
@@ -162,13 +205,23 @@ export const POSTerminalsPage: React.FC = () => {
             </div>
 
             <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-2">
-              <button
-                onClick={() => setActiveQrModal(t)}
-                className="flex-1 sm:flex-initial px-3 py-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded-xl text-xs flex items-center justify-center gap-1.5 transition cursor-pointer min-h-[38px]"
-              >
-                <QrCode className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                <span>Show QR Code</span>
-              </button>
+              {t.activationStatus === 'PENDING_ACTIVATION' ? (
+                <button
+                  onClick={() => setActiveActivateModal(t)}
+                  className="w-full py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-1.5 transition cursor-pointer min-h-[38px]"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 shrink-0" />
+                  <span>Activate with 4-Digit PIN</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => setActiveQrModal(t)}
+                  className="flex-1 sm:flex-initial px-3 py-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded-xl text-xs flex items-center justify-center gap-1.5 transition cursor-pointer min-h-[38px]"
+                >
+                  <QrCode className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span>Show QR Code</span>
+                </button>
+              )}
 
               {canManageTerminals && t.isActive !== false && t.status !== 'REVOKED' && (
                 <button
@@ -183,6 +236,59 @@ export const POSTerminalsPage: React.FC = () => {
           </div>
         ))}
       </div>
+
+      {/* PIN Activation Modal */}
+      {activeActivateModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3.5 sm:p-4">
+          <div className="w-full max-w-sm bg-slate-950 border border-slate-800 rounded-3xl p-5 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-white text-base">Activate POS Terminal</h3>
+              <button 
+                onClick={() => setActiveActivateModal(null)} 
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleActivateWithPin} className="space-y-4 text-xs">
+              <p className="text-slate-400">
+                Enter your Franchise Manager 4-digit PIN to activate terminal <strong className="text-white">{activeActivateModal.terminalName}</strong>.
+              </p>
+
+              <div>
+                <label className="font-bold text-slate-300 block mb-1">4-Digit Security PIN</label>
+                <input
+                  type="password"
+                  maxLength={4}
+                  required
+                  placeholder="••••"
+                  value={activationPin}
+                  onChange={(e) => setActivationPin(e.target.value.replace(/\D/g, ''))}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-center text-2xl font-mono font-black text-amber-400 tracking-[0.3em] focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveActivateModal(null)}
+                  className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={activating}
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl transition"
+                >
+                  {activating ? 'Activating...' : 'Activate Terminal'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Provision Modal */}
       {isRegisterOpen && (

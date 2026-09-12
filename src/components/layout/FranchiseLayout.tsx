@@ -31,13 +31,6 @@ export const FranchiseLayout: React.FC = () => {
     setIsDrawerOpen(false);
   }, [location.pathname]);
 
-  const franchises = [
-    { id: 'fra_primary', name: 'Olive Pizza Primary Franchise (Rajnandgaon)' },
-    { id: 'fra_durg', name: 'Olive Pizza Durg Franchise' },
-    { id: 'fra_bhilai', name: 'Olive Pizza Bhilai Franchise' },
-    { id: 'fra_raipur', name: 'Olive Pizza Raipur Franchise' },
-  ];
-
   const isGlobalOwner = session?.role === 'owner' || 
     session?.email === 'olivepizzarjn@gmail.com' || 
     session?.email === 'webhub2811@gmail.com';
@@ -47,35 +40,21 @@ export const FranchiseLayout: React.FC = () => {
     navigate('/login');
   };
 
-  const handleSwitchFranchise = (newFranchiseId: string) => {
-    const f = franchises.find(fr => fr.id === newFranchiseId);
-    setBranches([]);
-    setTerminals([]);
-    setSession({
-      uid: session?.uid || 'user_owner_olivepizza',
-      email: session?.email || 'olivepizzarjn@gmail.com',
-      role: 'owner',
-      branchIds: [],
-      franchiseId: newFranchiseId,
-      franchiseName: f?.name || newFranchiseId,
-      isAuthenticated: true
-    });
-  };
-
   const navItems = [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/branches', icon: Store, label: 'Branches & Stores' },
-    { to: '/pos-terminals', icon: Monitor, label: 'POS Terminals' },
+    { to: '/restaurant-management', icon: Building2, label: 'Restaurant Manager' },
+    { to: '/pos-terminals', icon: Monitor, label: 'POS Terminal' },
     { to: '/orders', icon: ShoppingBag, label: 'Franchise Orders' },
     { to: '/menu-pricing', icon: Layers, label: 'Menu & Pricing' },
-    { to: '/delivery-zones', icon: Bike, label: 'Delivery Zones' },
+    { to: '/delivery-zones', icon: Bike, label: 'Delivery Fleet' },
     { to: '/reports', icon: FileText, label: 'Reports & Sheets' },
     { to: '/settings', icon: Settings, label: 'Franchise Settings' },
   ];
 
   const bottomNavItems = [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { to: '/branches', icon: Store, label: 'Branches' },
+    { to: '/restaurant-management', icon: Building2, label: 'Manager' },
     { to: '/orders', icon: ShoppingBag, label: 'Orders' },
     { to: '/pos-terminals', icon: Monitor, label: 'POS' },
   ];
@@ -186,26 +165,9 @@ export const FranchiseLayout: React.FC = () => {
               <div className="p-3 mx-3 my-3 bg-slate-950 border border-slate-800 rounded-xl">
                 <div className="flex items-center gap-2 text-slate-400 text-xs">
                   <Building2 size={14} className="text-amber-400 shrink-0" />
-                  <span className="font-bold text-white truncate">{session?.franchiseName || 'Rajnandgaon Franchise'}</span>
+                  <span className="font-bold text-white truncate">{session?.franchiseName || 'Olive Pizza — Rajnandgaon HQ'}</span>
                 </div>
                 <p className="text-[10px] text-slate-500 font-mono mt-0.5">{session?.franchiseId || 'fra_primary'}</p>
-
-                {isGlobalOwner && (
-                  <div className="mt-2 pt-2 border-t border-slate-800/80">
-                    <label className="text-[10px] text-amber-400 font-bold block mb-1">Switch Franchise Context:</label>
-                    <select
-                      value={session?.franchiseId || 'fra_primary'}
-                      onChange={(e) => handleSwitchFranchise(e.target.value)}
-                      className="w-full bg-slate-900 text-white font-bold text-xs p-1.5 rounded-lg border border-slate-800 focus:outline-none cursor-pointer"
-                    >
-                      {franchises.map((f) => (
-                        <option key={f.id} value={f.id} className="bg-slate-900 text-white">
-                          {f.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
               </div>
 
               {/* Navigation Links */}
@@ -278,20 +240,6 @@ export const FranchiseLayout: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-1.5">
-            {isGlobalOwner && (
-              <select
-                value={session?.franchiseId || 'fra_primary'}
-                onChange={(e) => handleSwitchFranchise(e.target.value)}
-                className="bg-slate-950 border border-amber-500/40 text-amber-400 text-[11px] font-bold py-1.5 px-2 rounded-xl focus:outline-none cursor-pointer max-w-[140px] truncate"
-              >
-                {franchises.map((f) => (
-                  <option key={f.id} value={f.id} className="bg-slate-900 text-white">
-                    {f.name.replace('Olive Pizza ', '')}
-                  </option>
-                ))}
-              </select>
-            )}
-
             <button
               onClick={handleLogout}
               className="p-2 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition cursor-pointer"
@@ -302,38 +250,6 @@ export const FranchiseLayout: React.FC = () => {
             </button>
           </div>
         </header>
-
-        {/* Global Owner Context Switcher Header (Desktop >= lg) */}
-        {isGlobalOwner && (
-          <header className="hidden lg:flex h-14 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-6 items-center justify-between shrink-0 z-20">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-950 border border-amber-500/40 rounded-xl text-xs">
-                <ShieldCheck size={14} className="text-amber-400" />
-                <span className="text-[11px] font-bold text-amber-400">Current Franchise:</span>
-                <select
-                  value={session?.franchiseId || 'fra_primary'}
-                  onChange={(e) => handleSwitchFranchise(e.target.value)}
-                  className="bg-transparent text-white font-bold focus:outline-none cursor-pointer pr-1"
-                >
-                  {franchises.map((f) => (
-                    <option key={f.id} value={f.id} className="bg-slate-900 text-white">
-                      {f.name}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown size={12} className="text-slate-400 pointer-events-none" />
-              </div>
-            </div>
-
-            <a
-              href={import.meta.env.VITE_OWNER_PORTAL_URL || (import.meta.env.PROD ? 'https://owner.olivepizza.in/franchises' : 'http://localhost:5174/franchises')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-slate-300 hover:text-white transition-colors"
-            >
-              <ArrowLeft size={13} />
-              <span>Back to Owner Console</span>
-            </a>
-          </header>
-        )}
 
         {/* Scrollable Main Content */}
         <main className="flex-1 overflow-y-auto bg-slate-950 pb-20 lg:pb-0">

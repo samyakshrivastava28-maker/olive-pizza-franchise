@@ -9,6 +9,7 @@ import { POSTerminalsPage } from './pages/POSTerminalsPage';
 import { OrdersPage } from './pages/OrdersPage';
 import { MenuPricingPage } from './pages/MenuPricingPage';
 import { DeliveryManagementPage } from './pages/DeliveryManagementPage';
+import { RestaurantManagementPage } from './pages/RestaurantManagementPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { LoginPage } from './pages/LoginPage';
@@ -80,6 +81,7 @@ export function App() {
         <Route element={<FranchiseLayout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/branches" element={<BranchesPage />} />
+          <Route path="/restaurant-management" element={<RestaurantManagementPage />} />
           <Route path="/pos-terminals" element={<POSTerminalsPage />} />
           <Route path="/orders" element={<OrdersPage />} />
           <Route path="/menu-pricing" element={<MenuPricingPage />} />
