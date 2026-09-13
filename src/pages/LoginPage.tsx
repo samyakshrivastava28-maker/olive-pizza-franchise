@@ -2,17 +2,23 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useFranchiseStore } from '../store/franchiseStore';
 import { auth, db } from '../lib/firebase';
-import { signInWithEmailAndPassword, signInWithPopup, signInWithCredential, GoogleAuthProvider, signOut } from 'firebase/auth';
+import { signInWithEmailAndPassword, signInWithPopup, signInWithCredential, GoogleAuthProvider, signOut, RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
 import { Capacitor } from '@capacitor/core';
-import { Key, Sparkles, User, ShieldCheck, Lock } from 'lucide-react';
+import { Key, Sparkles, User, ShieldCheck, Lock, Phone } from 'lucide-react';
 import { AppLogo } from '../components/common/AppLogo';
 import { getApiUrl } from '../lib/api';
 import toast from 'react-hot-toast';
 import { requestPostLoginNotificationPermissions } from '../services/notificationPermissionService';
 
 export const LoginPage: React.FC = () => {
+  const [authMethod, setAuthMethod] = useState<'email' | 'phone'>('email');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [phone, setPhone] = useState('');
+  const [phoneOtp, setPhoneOtp] = useState('');
+  const [confirmationResult, setConfirmationResult] = useState<any>(null);
+  const [otpSent, setOtpSent] = useState(false);
+  const [phoneLoading, setPhoneLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [showPinModal, setShowPinModal] = useState(false);
@@ -218,6 +224,57 @@ export const LoginPage: React.FC = () => {
     }
   };
 
+  const handleSendPhoneOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!phone || phone.replace(/\D/g, '').length < 10) {
+      toast.error('Please enter a valid 10-digit mobile number');
+      return;
+    }
+    setPhoneLoading(true);
+    try {
+      let recaptcha = (window as any).recaptchaVerifier;
+      if (!recaptcha) {
+        recaptcha = new RecaptchaVerifier(auth, 'phone-recaptcha-container', {
+          size: 'invisible',
+        });
+        (window as any).recaptchaVerifier = recaptcha;
+      }
+      const rawDigits = phone.replace(/\D/g, '').slice(-10);
+      const formatted = `+91${rawDigits}`;
+      const confirmation = await signInWithPhoneNumber(auth, formatted, recaptcha);
+      setConfirmationResult(confirmation);
+      setOtpSent(true);
+      toast.success('6-digit SMS code dispatched!');
+    } catch (err: any) {
+      console.error('[LoginPage] Phone OTP error:', err);
+      toast.error(err.message || 'Failed to dispatch SMS code');
+    } finally {
+      setPhoneLoading(false);
+    }
+  };
+
+  const handleVerifyPhoneOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!phoneOtp || phoneOtp.length !== 6) {
+      toast.error('Enter 6-digit SMS verification code');
+      return;
+    }
+    setPhoneLoading(true);
+    try {
+      const res = await confirmationResult.confirm(phoneOtp);
+      const ready = await verifyFranchiseRole(res.user);
+      if (ready) {
+        toast.success('Welcome to Franchise Management! 🍕');
+        requestPostLoginNotificationPermissions().catch(() => {});
+        navigate('/dashboard');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Incorrect verification code');
+    } finally {
+      setPhoneLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen w-screen bg-slate-950 text-white flex flex-col items-center justify-center p-3.5 sm:p-6">
       <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-8 shadow-2xl space-y-5 sm:space-y-6">
@@ -261,50 +318,135 @@ export const LoginPage: React.FC = () => {
           )}
         </button>
 
-        <div className="flex items-center gap-3">
-          <div className="flex-1 h-px bg-slate-800" />
-          <span className="text-[10px] uppercase font-bold text-slate-500">Or sign in with email</span>
-          <div className="flex-1 h-px bg-slate-800" />
+        {/* Credential Selection Prompt */}
+        <div className="space-y-2 pt-1">
+          <label className="text-xs font-bold text-slate-300 block text-center">
+            How would you like to log in?
+          </label>
+          <div className="grid grid-cols-2 gap-2 bg-slate-950 p-1.5 rounded-2xl border border-slate-800">
+            <button
+              type="button"
+              onClick={() => setAuthMethod('email')}
+              className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                authMethod === 'email' ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <User size={13} /> Email
+            </button>
+            <button
+              type="button"
+              onClick={() => setAuthMethod('phone')}
+              className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                authMethod === 'phone' ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Phone size={13} /> Phone Number
+            </button>
+          </div>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleEmailLogin} className="space-y-4 text-xs">
-          <div>
-            <label className="font-bold text-slate-300 block mb-1 flex items-center gap-1.5">
-              <User size={13} className="text-amber-400" /> Franchise Account Email
-            </label>
-            <input
-              type="email"
-              required
-              placeholder="franchise@olivepizza.in"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500"
-            />
-          </div>
+        {/* Form: Email Option */}
+        {authMethod === 'email' && (
+          <form onSubmit={handleEmailLogin} className="space-y-4 text-xs">
+            <div>
+              <label className="font-bold text-slate-300 block mb-1 flex items-center gap-1.5">
+                <User size={13} className="text-amber-400" /> Franchise Account Email
+              </label>
+              <input
+                type="email"
+                required
+                placeholder="franchise@olivepizza.in"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500"
+              />
+            </div>
 
-          <div>
-            <label className="font-bold text-slate-300 block mb-1 flex items-center gap-1.5">
-              <Key size={13} className="text-amber-400" /> Password
-            </label>
-            <input
-              type="password"
-              required
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500"
-            />
-          </div>
+            <div>
+              <label className="font-bold text-slate-300 block mb-1 flex items-center gap-1.5">
+                <Key size={13} className="text-amber-400" /> Password
+              </label>
+              <input
+                type="password"
+                required
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500"
+              />
+            </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-black text-sm rounded-xl transition-all shadow-lg shadow-amber-500/20 active:scale-98 flex items-center justify-center gap-2 mt-2 disabled:opacity-50 cursor-pointer"
-          >
-            <Sparkles size={16} /> {loading ? 'Authenticating...' : 'Sign In to Franchise Portal'}
-          </button>
-        </form>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-black text-sm rounded-xl transition-all shadow-lg shadow-amber-500/20 active:scale-98 flex items-center justify-center gap-2 mt-2 disabled:opacity-50 cursor-pointer"
+            >
+              <Sparkles size={16} /> {loading ? 'Authenticating...' : 'Sign In to Franchise Portal'}
+            </button>
+          </form>
+        )}
+
+        {/* Form: Phone Option */}
+        {authMethod === 'phone' && (
+          <div className="space-y-4 text-xs">
+            <div id="phone-recaptcha-container" />
+            {!otpSent ? (
+              <form onSubmit={handleSendPhoneOtp} className="space-y-4">
+                <div>
+                  <label className="font-bold text-slate-300 block mb-1 flex items-center gap-1.5">
+                    <Phone size={13} className="text-amber-400" /> Registered Mobile Number
+                  </label>
+                  <div className="flex gap-2">
+                    <span className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-slate-400 flex items-center font-mono">
+                      +91
+                    </span>
+                    <input
+                      type="tel"
+                      required
+                      placeholder="9876543210"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={phoneLoading}
+                  className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-black text-sm rounded-xl transition-all shadow-lg shadow-amber-500/20 active:scale-98 flex items-center justify-center gap-2 mt-2 disabled:opacity-50 cursor-pointer"
+                >
+                  <Sparkles size={16} /> {phoneLoading ? 'Sending SMS Code...' : 'Send SMS Verification Code'}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleVerifyPhoneOtp} className="space-y-4">
+                <div>
+                  <label className="font-bold text-slate-300 block mb-1 flex items-center gap-1.5">
+                    <Key size={13} className="text-amber-400" /> 6-Digit SMS Verification Code
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={6}
+                    placeholder="123456"
+                    value={phoneOtp}
+                    onChange={(e) => setPhoneOtp(e.target.value.replace(/\D/g, ''))}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-center text-xl font-mono text-amber-400 tracking-widest focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={phoneLoading}
+                  className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-black text-sm rounded-xl transition-all shadow-lg shadow-amber-500/20 active:scale-98 flex items-center justify-center gap-2 mt-2 disabled:opacity-50 cursor-pointer"
+                >
+                  <Sparkles size={16} /> {phoneLoading ? 'Verifying...' : 'Verify & Sign In'}
+                </button>
+              </form>
+            )}
+          </div>
+        )}
 
         <div className="pt-2 border-t border-slate-800/80 text-center">
           <p className="text-[10px] text-slate-500 flex items-center justify-center gap-1">
