@@ -39,8 +39,7 @@ export const DashboardPage: React.FC = () => {
 
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
   const [alerts, setAlerts] = useState<any[]>([
-    { id: '1', item: 'Mozzarella Cheese (1kg)', branch: 'Rajnandgaon HQ', current: 2, min: 5, level: 'CRITICAL' },
-    { id: '2', item: 'Pizza Boxes 10-inch', branch: 'Durg Branch', current: 15, min: 50, level: 'WARNING' }
+    { id: '1', item: 'Mozzarella Cheese (1kg)', branch: 'Olive Pizza — Rajnandgaon', current: 2, min: 5, level: 'CRITICAL' }
   ]);
 
   const loadDashboardData = async () => {

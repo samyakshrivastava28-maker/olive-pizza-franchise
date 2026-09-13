@@ -165,7 +165,7 @@ export const FranchiseLayout: React.FC = () => {
               <div className="p-3 mx-3 my-3 bg-slate-950 border border-slate-800 rounded-xl">
                 <div className="flex items-center gap-2 text-slate-400 text-xs">
                   <Building2 size={14} className="text-amber-400 shrink-0" />
-                  <span className="font-bold text-white truncate">{session?.franchiseName || 'Olive Pizza — Rajnandgaon HQ'}</span>
+                  <span className="font-bold text-white truncate">{session?.franchiseName || 'Olive Pizza — Rajnandgaon'}</span>
                 </div>
                 <p className="text-[10px] text-slate-500 font-mono mt-0.5">{session?.franchiseId || 'fra_primary'}</p>
               </div>

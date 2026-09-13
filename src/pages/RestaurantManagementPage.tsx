@@ -269,7 +269,7 @@ export const RestaurantManagementPage: React.FC = () => {
               <span className="text-slate-500 flex items-center gap-1.5 font-medium">
                 <Store size={14} className="text-amber-400" /> Assigned Branch
               </span>
-              <p className="font-bold text-slate-200 text-sm">{activeManager.branchName || 'Rajnandgaon HQ'}</p>
+              <p className="font-bold text-slate-200 text-sm">{activeManager.branchName || 'Olive Pizza — Rajnandgaon'}</p>
             </div>
 
             <div className="p-4 bg-slate-950/60 rounded-2xl border border-slate-800/80 space-y-1">

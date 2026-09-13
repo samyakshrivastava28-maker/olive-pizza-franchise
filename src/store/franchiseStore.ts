@@ -28,11 +28,11 @@ interface FranchiseState {
   logout: () => Promise<void>;
 }
 
-// Canonical Rajnandgaon HQ is the single primary location. No fake branches.
+// Canonical Rajnandgaon location is the single primary location. No fake branches.
 const INITIAL_BRANCHES: Branch[] = [
   {
     id: 'main_branch',
-    name: 'Olive Pizza — Rajnandgaon HQ',
+    name: 'Olive Pizza — Rajnandgaon',
     address: 'Dongargaon Rd, near Saraswati school, Rajnandgaon, CG',
     phone: '+91 91799 44445',
     managerName: 'Branch Manager',
