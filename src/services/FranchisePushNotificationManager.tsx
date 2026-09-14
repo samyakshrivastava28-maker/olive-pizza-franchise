@@ -102,7 +102,7 @@ export default function FranchisePushNotificationManager() {
 
         PushNotifications.addListener('pushNotificationReceived', (notification) => {
           console.log('[Franchise PushManager] Push received in foreground:', notification);
-          SoundAlertEngine.playSound('new_order');
+          SoundAlertEngine.playSound('system_alert');
         });
 
         await PushNotifications.register();
@@ -163,8 +163,10 @@ export default function FranchisePushNotificationManager() {
     const channel = new BroadcastChannel('olive_pizza_notifications');
     channel.onmessage = (event) => {
       const data = event.data || {};
-      if (data.type === 'START_ALERT' || data.type === 'NEW_NOTIFICATION') {
-        SoundAlertEngine.playSound('new_order');
+      // Ignore kitchen alarms completely in franchise portal
+      if (data.type === 'START_ALERT') return;
+      if (data.type === 'NEW_NOTIFICATION') {
+        SoundAlertEngine.playSound('system_alert');
       }
     };
     return () => {
