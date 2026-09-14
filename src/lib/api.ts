@@ -31,6 +31,8 @@ export async function fetchApi(endpoint: string, options: RequestInit = {}): Pro
     headers.set('Content-Type', 'application/json');
   }
   headers.set('x-franchise-id', franchiseId);
+  const deviceId = localStorage.getItem('franchise_device_id') || `dev_fra_${franchiseId}`;
+  headers.set('x-device-id', deviceId);
   
   const token = await getCurrentAuthToken().catch(() => null);
   if (token && !headers.has('Authorization')) {
@@ -39,6 +41,16 @@ export async function fetchApi(endpoint: string, options: RequestInit = {}): Pro
 
   try {
     const res = await fetch(url, { ...options, headers });
+    if (res.status === 429) {
+      const data = await res.json().catch(() => null);
+      return {
+        success: false,
+        code: 'AUTH_RATE_LIMITED',
+        error: data?.message || 'Too many attempts from this device. Please try again later.',
+        message: data?.message || 'Too many attempts from this device. Please try again later.',
+        retryAfter: data?.retryAfter || data?.retryAfterSeconds || 120
+      };
+    }
     if (res.status === 401) {
       return { success: false, error: 'Authentication expired or invalid. Please sign in again.' };
     }
