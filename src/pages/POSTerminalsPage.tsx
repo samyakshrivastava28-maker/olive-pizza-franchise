@@ -29,6 +29,7 @@ export interface PosAccount {
 export const POSTerminalsPage: React.FC = () => {
   const { session } = useFranchiseStore();
   const [posAccounts, setPosAccounts] = useState<PosAccount[]>([]);
+  const [posRequest, setPosRequest] = useState<any | null>(null);
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [terminalName, setTerminalName] = useState('');
   const [posEmail, setPosEmail] = useState('');
@@ -51,9 +52,45 @@ export const POSTerminalsPage: React.FC = () => {
     }
   };
 
+  const fetchPosRequest = async () => {
+    try {
+      const res = await fetchApi('/api/franchises/pos-request/my');
+      if (res && res.success && res.request) {
+        setPosRequest(res.request);
+      } else {
+        setPosRequest(null);
+      }
+    } catch (err) {
+      console.warn('[POSTerminalsPage] Error fetching pos request:', err);
+    }
+  };
+
   useEffect(() => {
     fetchAccounts();
+    fetchPosRequest();
   }, [session?.franchiseId]);
+
+  const handleQuickPosRequest = async () => {
+    setSubmitting(true);
+    const toastId = toast.loading('Submitting POS access request to Store Owner...');
+    try {
+      const res = await fetchApi('/api/franchises/pos-request', {
+        method: 'POST',
+        body: JSON.stringify({ notes: 'Requesting POS access for branch billing counter' })
+      });
+      if (res && res.success) {
+        toast.success('POS access request sent to Store Owner!', { id: toastId });
+        fetchPosRequest();
+        fetchAccounts();
+      } else {
+        toast.error(res.error || 'Failed to submit POS request', { id: toastId });
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Request failed', { id: toastId });
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const handleRegisterAccount = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -101,8 +138,27 @@ export const POSTerminalsPage: React.FC = () => {
     acc => acc.status === 'PENDING_OWNER_APPROVAL' || acc.status === 'APPROVED' || acc.status === 'ACTIVE'
   );
 
+  const hasPendingRequest = (posRequest?.status === 'PENDING_OWNER_APPROVAL' || posRequest?.status === 'PENDING');
+
   return (
     <div className="p-3.5 sm:p-5 lg:p-8 space-y-4 sm:space-y-6 max-w-7xl mx-auto animate-in fade-in duration-150">
+      {hasPendingRequest && (
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
+          <div className="flex items-center gap-3">
+            <Clock className="w-5 h-5 text-amber-400 shrink-0 animate-pulse" />
+            <div>
+              <h4 className="text-xs font-bold text-white">POS Access Request Pending Owner Approval</h4>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Submitted on {posRequest.createdAt ? new Date(posRequest.createdAt).toLocaleString() : 'recently'}. The Store Owner has been notified to verify and enable POS billing for your franchise.
+              </p>
+            </div>
+          </div>
+          <span className="px-3 py-1 bg-amber-500/20 text-amber-400 text-xs font-bold rounded-full border border-amber-500/30 self-start sm:self-auto">
+            Pending Owner Approval ⏳
+          </span>
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
           <div className="flex items-center gap-2">
@@ -112,22 +168,35 @@ export const POSTerminalsPage: React.FC = () => {
             </span>
           </div>
           <p className="text-xs text-slate-400 mt-1">
-            Franchise Manager creates the POS login credentials. Accounts start as <strong>PENDING OWNER APPROVAL</strong> and require Store Owner verification before activation.
+            Franchise Manager creates the POS login credentials or requests POS access. Accounts start as <strong>PENDING OWNER APPROVAL</strong> and require Store Owner verification before activation.
           </p>
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
-          {!hasExistingAccount && (
-            <button
-              onClick={() => setIsRegisterOpen(true)}
-              className="flex-1 sm:flex-initial px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-lg shadow-amber-500/20 cursor-pointer min-h-[44px]"
-            >
-              <Plus className="w-4 h-4 shrink-0" />
-              <span>+ Add POS Account</span>
-            </button>
+          {!hasExistingAccount && !hasPendingRequest && (
+            <>
+              <button
+                onClick={handleQuickPosRequest}
+                disabled={submitting}
+                className="flex-1 sm:flex-initial px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-lg shadow-emerald-500/20 cursor-pointer min-h-[44px]"
+              >
+                <Monitor className="w-4 h-4 shrink-0" />
+                <span>Request POS Access</span>
+              </button>
+              <button
+                onClick={() => setIsRegisterOpen(true)}
+                className="flex-1 sm:flex-initial px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-lg shadow-amber-500/20 cursor-pointer min-h-[44px]"
+              >
+                <Plus className="w-4 h-4 shrink-0" />
+                <span>+ Custom Account</span>
+              </button>
+            </>
           )}
           <button
-            onClick={fetchAccounts}
+            onClick={() => {
+              fetchAccounts();
+              fetchPosRequest();
+            }}
             disabled={isLoading}
             className="p-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded-xl text-xs flex items-center justify-center transition min-h-[44px] min-w-[44px] cursor-pointer shrink-0"
             aria-label="Refresh accounts"
@@ -145,12 +214,27 @@ export const POSTerminalsPage: React.FC = () => {
           <p className="text-xs text-slate-400 leading-relaxed">
             Your franchise does not currently have a POS terminal account configured. You can provision exactly 1 POS account for in-store billing.
           </p>
-          <button
-            onClick={() => setIsRegisterOpen(true)}
-            className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl transition cursor-pointer"
-          >
-            + Provision POS Account Now
-          </button>
+          {hasPendingRequest ? (
+            <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-300">
+              Access request currently under Store Owner review.
+            </div>
+          ) : (
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
+              <button
+                onClick={handleQuickPosRequest}
+                disabled={submitting}
+                className="w-full sm:w-auto px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs rounded-xl transition cursor-pointer"
+              >
+                Request POS Access
+              </button>
+              <button
+                onClick={() => setIsRegisterOpen(true)}
+                className="w-full sm:w-auto px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl transition cursor-pointer"
+              >
+                + Provision POS Account Now
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
