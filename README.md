@@ -37,6 +37,10 @@
 * **Tax Accounting**: Detailed calculations for Central GST (CGST) and State GST (SGST) per branch.
 * **Payment Method Distribution**: Live tallies of UPI QR, Cash on Delivery, credit/debit cards, and payment gateway collections.
 
+### 📑 5. Parameterized Accounting Reports
+* **Flexible Date Windows**: Native reporting powered by `SalesCalculationEngine.ts` supporting `today`, `yesterday`, `this_week`, `last_week`, `this_month`, `last_month`, `this_year`, and custom date ranges.
+* **Multi-Branch Isolation**: Strict scoping prevents cross-franchise data leakage while allowing territory-wide rollups.
+
 ---
 
 ## 🏗️ Technical Architecture & Stack
