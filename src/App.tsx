@@ -17,7 +17,7 @@ import { AppRestrictedScreen } from './components/common/AppRestrictedScreen';
 import FranchisePushNotificationManager from './services/FranchisePushNotificationManager';
 
 export function App() {
-  const { session, isAuthChecking, restrictedReason, restrictedEmail, clearRestricted, logout, initAuth } = useFranchiseStore();
+  const { session, isAuthChecking, restrictedReason, restrictedEmail, authStatus, clearRestricted, logout, initAuth } = useFranchiseStore();
 
   useEffect(() => {
     const unsub = initAuth();
@@ -41,6 +41,7 @@ export function App() {
         appName="Olive Pizza Franchise Management"
         userEmail={restrictedEmail || undefined}
         reason={restrictedReason}
+        status={authStatus}
         onRetry={() => {
           clearRestricted();
           initAuth();

@@ -9,6 +9,7 @@ interface FranchiseState {
   session: FranchiseSession | null;
   isAuthChecking: boolean;
   isAuthorized: boolean;
+  authStatus?: 'APPROVED' | 'PENDING_OWNER_APPROVAL' | 'ACCOUNT_REJECTED' | 'ACCOUNT_DEACTIVATED' | null;
   isPinVerified: boolean;
   requiresPin: boolean;
   restrictedReason: string | null;
@@ -48,6 +49,7 @@ export const useFranchiseStore = create<FranchiseState>((set, get) => ({
   session: null,
   isAuthChecking: true,
   isAuthorized: false,
+  authStatus: null,
   isPinVerified: false,
   requiresPin: false,
   restrictedReason: null,
@@ -163,62 +165,45 @@ export const useFranchiseStore = create<FranchiseState>((set, get) => ({
           // Dynamically load real branches for this franchise
           get().fetchBranches();
         } else {
-          // Unauthorized account — wipe session and enforce immediate sign out
+          // Account not authorized for dashboard access
           const denialReason = authData?.reason || 'This account is not authorized to use this Olive Pizza application.';
-          console.warn('[FranchiseStore] Access restricted for account:', emailLower, denialReason);
+          const code = authData?.code || 'UNAUTHORIZED';
+          console.warn('[FranchiseStore] Access restricted for account:', emailLower, code, denialReason);
 
-          await signOut(auth).catch(() => {});
+          // If pending approval, KEEP Firebase session so the user can see their pending status and refresh
+          const isPending = code === 'PENDING_OWNER_APPROVAL';
+          if (!isPending) {
+            await signOut(auth).catch(() => {});
+          }
+
           localStorage.removeItem('franchise_id');
           sessionStorage.clear();
 
           set({
-            user: null,
+            user: isPending ? firebaseUser : null,
             session: null,
             isAuthChecking: false,
             isAuthorized: false,
             isPinVerified: false,
             requiresPin: false,
+            authStatus: isPending ? 'PENDING_OWNER_APPROVAL' : code === 'ACCOUNT_REJECTED' ? 'ACCOUNT_REJECTED' : code === 'ACCOUNT_DEACTIVATED' ? 'ACCOUNT_DEACTIVATED' : null,
             restrictedReason: denialReason,
             restrictedEmail: emailLower
           });
         }
       } catch (err: any) {
         console.error('[FranchiseStore] Auth handshake network error:', err);
-
-        const isMasterOwner = emailLower === 'olivepizzarjn@gmail.com' || emailLower === 'webhub2811@gmail.com' || emailLower === 'olivepizzamaker@gmail.com';
-        if (isMasterOwner) {
-          const fallbackSession: FranchiseSession = {
-            uid: firebaseUser.uid,
-            email: emailLower,
-            franchiseId: 'fra_rajnandgaon',
-            franchiseName: 'Olive Pizza — Rajnandgaon Franchise',
-            role: 'owner',
-            branchIds: ['main_branch'],
-            isAuthenticated: true
-          };
-          set({
-            user: firebaseUser,
-            session: fallbackSession,
-            isAuthChecking: false,
-            isAuthorized: true,
-            isPinVerified: true,
-            requiresPin: false,
-            restrictedReason: null,
-            restrictedEmail: null
-          });
-        } else {
-          await signOut(auth).catch(() => {});
-          set({
-            user: null,
-            session: null,
-            isAuthChecking: false,
-            isAuthorized: false,
-            isPinVerified: false,
-            requiresPin: false,
-            restrictedReason: 'This account is not authorized to use this Olive Pizza application.',
-            restrictedEmail: emailLower
-          });
-        }
+        set({
+          user: firebaseUser,
+          session: null,
+          isAuthChecking: false,
+          isAuthorized: false,
+          isPinVerified: false,
+          requiresPin: false,
+          authStatus: null,
+          restrictedReason: 'Failed to verify authorization with backend. Please check your connection and retry.',
+          restrictedEmail: emailLower
+        });
       }
     });
 
