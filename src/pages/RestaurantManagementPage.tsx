@@ -37,7 +37,7 @@ interface RestaurantManagerAccount {
 
 export const RestaurantManagementPage: React.FC = () => {
   const { session, branches } = useFranchiseStore();
-  const franchiseId = session?.franchiseId || 'fra_rajnandgaon';
+  const franchiseId = session?.franchiseId || '';
 
   const [managers, setManagers] = useState<RestaurantManagerAccount[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -49,7 +49,7 @@ export const RestaurantManagementPage: React.FC = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [branchId, setBranchId] = useState(branches[0]?.id || 'main_branch');
+  const [branchId, setBranchId] = useState(branches[0]?.id || '');
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -107,7 +107,7 @@ export const RestaurantManagementPage: React.FC = () => {
           name: name.trim(),
           email: email.trim().toLowerCase(),
           phone: phone.trim(),
-          branchId: branchId || 'main_branch',
+          branchId: branchId || '',
           pin: pin.trim()
         })
       });

@@ -35,7 +35,7 @@ interface DeliveryPartner {
 
 export const DeliveryManagementPage: React.FC = () => {
   const { session } = useFranchiseStore();
-  const franchiseId = session?.franchiseId || 'fra_rajnandgaon';
+  const franchiseId = session?.franchiseId || '';
 
   const [riders, setRiders] = useState<DeliveryPartner[]>([]);
   const [loading, setLoading] = useState(true);

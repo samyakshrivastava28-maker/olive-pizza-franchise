@@ -81,10 +81,10 @@ export const LoginPage: React.FC = () => {
         sessionData = {
           uid,
           email: normalized,
-          franchiseId: u.franchiseId || 'fra_rajnandgaon',
+          franchiseId: u.franchiseId || '',
           franchiseName: u.franchiseName || 'Olive Pizza — Rajnandgaon Franchise',
           role: u.role as any,
-          branchIds: u.branchIds || ['main_branch'],
+          branchIds: u.branchIds || [],
           isAuthenticated: true
         };
       } else {
@@ -94,10 +94,10 @@ export const LoginPage: React.FC = () => {
           sessionData = {
             uid,
             email: normalized,
-            franchiseId: 'fra_rajnandgaon',
+            franchiseId: '',
             franchiseName: 'Olive Pizza — Rajnandgaon Franchise',
             role: 'owner',
-            branchIds: ['main_branch'],
+            branchIds: [],
             isAuthenticated: true
           };
         }
@@ -109,10 +109,10 @@ export const LoginPage: React.FC = () => {
         sessionData = {
           uid,
           email: normalized,
-          franchiseId: 'fra_rajnandgaon',
+          franchiseId: '',
           franchiseName: 'Olive Pizza — Rajnandgaon Franchise',
           role: 'owner',
-          branchIds: ['main_branch'],
+          branchIds: [],
           isAuthenticated: true
         };
       }

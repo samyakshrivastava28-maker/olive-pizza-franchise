@@ -37,7 +37,7 @@ export const ReportsPage: React.FC = () => {
     pendingSyncCount: 0
   });
 
-  const franchiseId = session?.franchiseId || 'fra_rajnandgaon';
+  const franchiseId = session?.franchiseId || '';
 
   const loadSheetsStatus = async () => {
     setLoading(true);

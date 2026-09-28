@@ -29,7 +29,7 @@ export const OrdersPage: React.FC = () => {
   const loadOrders = async () => {
     setLoading(true);
     try {
-      const fId = session?.franchiseId || 'fra_rajnandgaon';
+      const fId = session?.franchiseId || '';
       const res = await fetchApi(`/api/franchises/${fId}/live-orders`);
       if (res && res.orders) {
         setOrders(res.orders);

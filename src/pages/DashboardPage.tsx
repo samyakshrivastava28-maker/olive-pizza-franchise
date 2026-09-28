@@ -45,7 +45,7 @@ export const DashboardPage: React.FC = () => {
   const loadDashboardData = async () => {
     setLoading(true);
     try {
-      const fId = session?.franchiseId || 'fra_rajnandgaon';
+      const fId = session?.franchiseId || '';
       const res = await fetchApi(`/api/franchises/${fId}/telemetry`);
       if (res && res.success) {
         setMetrics((prev) => ({

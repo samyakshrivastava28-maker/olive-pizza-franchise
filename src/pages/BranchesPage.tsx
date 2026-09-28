@@ -26,7 +26,7 @@ export const BranchesPage: React.FC = () => {
   const loadBranches = async () => {
     setLoading(true);
     try {
-      const fId = session?.franchiseId || 'fra_rajnandgaon';
+      const fId = session?.franchiseId || '';
       const res = await fetchApi(`/api/franchises/${fId}/restaurants`);
       if (res && res.restaurants && res.restaurants.length > 0) {
         setBranches(res.restaurants.map((r: any) => ({
@@ -58,7 +58,7 @@ export const BranchesPage: React.FC = () => {
   const toggleBranchStatus = async (branchId: string, currentStatus: boolean) => {
     const nextStatus = !currentStatus;
     try {
-      const res = await fetchApi(`/api/franchises/${session?.franchiseId || 'fra_rajnandgaon'}/restaurants/${branchId}/settings`, {
+      const res = await fetchApi(`/api/franchises/${session?.franchiseId || ''}/restaurants/${branchId}/settings`, {
         method: 'PATCH',
         body: JSON.stringify({ isOpen: nextStatus })
       });

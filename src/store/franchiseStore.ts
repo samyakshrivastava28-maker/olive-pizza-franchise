@@ -30,20 +30,6 @@ interface FranchiseState {
 }
 
 // Canonical Rajnandgaon location is the single primary location. No fake branches.
-const INITIAL_BRANCHES: Branch[] = [
-  {
-    id: 'main_branch',
-    name: 'Olive Pizza — Rajnandgaon',
-    address: 'Dongargaon Rd, near Saraswati school, Rajnandgaon, CG',
-    phone: '+91 91799 44445',
-    managerName: 'Branch Manager',
-    managerEmail: 'manager.rjn@olivepizza.in',
-    activeOrdersCount: 0,
-    todaySales: 0,
-    isOpen: true
-  }
-];
-
 export const useFranchiseStore = create<FranchiseState>((set, get) => ({
   user: null,
   session: null,
@@ -55,7 +41,7 @@ export const useFranchiseStore = create<FranchiseState>((set, get) => ({
   restrictedReason: null,
   restrictedEmail: null,
   clearRestricted: () => set({ restrictedReason: null, restrictedEmail: null }),
-  branches: INITIAL_BRANCHES,
+  branches: [],
   terminals: [],
   setSession: (session) => set({ session, isAuthorized: !!session }),
   setBranches: (branches) => set({ branches }),
@@ -64,7 +50,8 @@ export const useFranchiseStore = create<FranchiseState>((set, get) => ({
 
   fetchBranches: async () => {
     try {
-      const fId = get().session?.franchiseId || 'fra_rajnandgaon';
+      const fId = get().session?.franchiseId;
+    if (!fId) return;
       const res = await fetch(getApiUrl(`api/franchises/${fId}/branches`), {
         headers: {
           'x-franchise-id': fId,
@@ -144,10 +131,10 @@ export const useFranchiseStore = create<FranchiseState>((set, get) => ({
           const newSession: FranchiseSession = {
             uid: firebaseUser.uid,
             email: emailLower,
-            franchiseId: u.franchiseId || 'fra_rajnandgaon',
+            franchiseId: u.franchiseId || '',
             franchiseName: u.franchiseName || 'Olive Pizza — Rajnandgaon Franchise',
             role: u.role as any,
-            branchIds: u.branchIds || ['main_branch'],
+            branchIds: u.branchIds || [],
             isAuthenticated: true
           };
           localStorage.setItem('franchise_id', newSession.franchiseId);

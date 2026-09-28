@@ -43,7 +43,7 @@ export default function FranchisePushNotificationManager() {
   // 2. Token Registration across Platforms
   const registerToken = useCallback(async () => {
     if (isRegisteredRef.current) return;
-    const franchiseId = session?.franchiseId || localStorage.getItem('franchise_id') || 'fra_primary';
+    const franchiseId = session?.franchiseId || localStorage.getItem('franchise_id') || '';
 
     try {
       // Electron Desktop App

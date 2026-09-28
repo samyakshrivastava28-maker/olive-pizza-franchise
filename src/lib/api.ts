@@ -36,7 +36,7 @@ export function getApiUrl(endpoint: string = ''): string {
 
 export async function fetchApi(endpoint: string, options: RequestInit = {}): Promise<any> {
   const url = getApiUrl(endpoint);
-  const franchiseId = localStorage.getItem('franchise_id') || 'fra_primary';
+  const franchiseId = localStorage.getItem('franchise_id') || '';
 
   const headers = new Headers(options.headers || {});
   if (!headers.has('Content-Type') && !(options.body instanceof FormData)) {

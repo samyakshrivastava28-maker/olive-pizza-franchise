@@ -40,7 +40,7 @@ export const POSTerminalsPage: React.FC = () => {
   const fetchAccounts = async () => {
     setIsLoading(true);
     try {
-      const fId = session?.franchiseId || 'fra_rajnandgaon';
+      const fId = session?.franchiseId || '';
       const res = await fetchApi(`/api/franchises/${fId}/pos-accounts`);
       if (res && res.accounts) {
         setPosAccounts(res.accounts);
@@ -107,7 +107,7 @@ export const POSTerminalsPage: React.FC = () => {
     setSubmitting(true);
     const toastId = toast.loading('Creating POS account...');
     try {
-      const fId = session?.franchiseId || 'fra_rajnandgaon';
+      const fId = session?.franchiseId || '';
       const res = await fetchApi(`/api/franchises/${fId}/pos-accounts`, {
         method: 'POST',
         body: JSON.stringify({
