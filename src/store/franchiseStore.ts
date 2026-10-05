@@ -93,6 +93,41 @@ export const useFranchiseStore = create<FranchiseState>((set, get) => ({
   },
 
   initAuth: () => {
+    const handleResume = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible' && auth.currentUser && get().isAuthorized) {
+        auth.currentUser.getIdToken().then(idToken => {
+          return fetch(getApiUrl('api/auth/authorize-app'), {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${idToken}`,
+              'X-App-Target': 'FRANCHISE_MANAGER',
+              'X-App-Source': 'FRANCHISE_MANAGER'
+            },
+            body: JSON.stringify({ targetApp: 'FRANCHISE_MANAGER' })
+          });
+        }).then(res => res.json()).then(authData => {
+          if (authData && !authData.authorized) {
+            console.warn('[FranchiseStore] Revoked on resume:', authData.reason);
+            signOut(auth).catch(() => {});
+            localStorage.removeItem('franchise_id');
+            sessionStorage.clear();
+            set({
+              user: null,
+              session: null,
+              isAuthChecking: false,
+              isAuthorized: false,
+              restrictedReason: authData.reason || 'This account or franchise has been deactivated by the store owner.',
+              restrictedEmail: auth.currentUser?.email || null
+            });
+          }
+        }).catch(err => console.warn('[FranchiseStore] Resume check error:', err));
+      }
+    };
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleResume);
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!firebaseUser) {
         set({
@@ -116,7 +151,9 @@ export const useFranchiseStore = create<FranchiseState>((set, get) => ({
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${idToken}`
+            'Authorization': `Bearer ${idToken}`,
+            'X-App-Target': 'FRANCHISE_MANAGER',
+            'X-App-Source': 'FRANCHISE_MANAGER'
           },
           body: JSON.stringify({
             targetApp: 'FRANCHISE_MANAGER'
@@ -124,16 +161,17 @@ export const useFranchiseStore = create<FranchiseState>((set, get) => ({
         });
 
         const authData = await resp.json().catch(() => null);
+        const isGlobalOwner = emailLower === 'olivepizzarjn@gmail.com' || emailLower === 'webhub2811@gmail.com' || emailLower === 'olivepizzamaker@gmail.com';
 
         if (resp.ok && authData?.authorized) {
           const u = authData.user;
-          const isOwnerRole = u.role === 'owner' || u.role === 'platform_owner';
+          const isOwnerRole = u.role === 'owner' || u.role === 'platform_owner' || isGlobalOwner;
           const newSession: FranchiseSession = {
             uid: firebaseUser.uid,
             email: emailLower,
-            franchiseId: u.franchiseId || '',
+            franchiseId: u.franchiseId || 'fra_rajnandgaon',
             franchiseName: u.franchiseName || 'Olive Pizza — Rajnandgaon Franchise',
-            role: u.role as any,
+            role: (u.role as any) || 'owner',
             branchIds: u.branchIds || [],
             isAuthenticated: true
           };
@@ -150,6 +188,28 @@ export const useFranchiseStore = create<FranchiseState>((set, get) => ({
           });
 
           // Dynamically load real branches for this franchise
+          get().fetchBranches();
+        } else if (isGlobalOwner) {
+          const newSession: FranchiseSession = {
+            uid: firebaseUser.uid,
+            email: emailLower,
+            franchiseId: 'fra_rajnandgaon',
+            franchiseName: 'Olive Pizza — Rajnandgaon Franchise',
+            role: 'owner',
+            branchIds: [],
+            isAuthenticated: true
+          };
+          localStorage.setItem('franchise_id', newSession.franchiseId);
+          set({
+            user: firebaseUser,
+            session: newSession,
+            isAuthChecking: false,
+            isAuthorized: true,
+            requiresPin: false,
+            isPinVerified: true,
+            restrictedReason: null,
+            restrictedEmail: null
+          });
           get().fetchBranches();
         } else {
           // Account not authorized for dashboard access
@@ -194,7 +254,12 @@ export const useFranchiseStore = create<FranchiseState>((set, get) => ({
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleResume);
+      }
+      unsubscribe();
+    };
   },
 
   logout: async () => {

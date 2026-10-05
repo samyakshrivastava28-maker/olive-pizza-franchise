@@ -66,7 +66,9 @@ export const LoginPage: React.FC = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${idToken}`
+          'Authorization': `Bearer ${idToken}`,
+          'X-App-Target': 'FRANCHISE_MANAGER',
+          'X-App-Source': 'FRANCHISE_MANAGER'
         },
         body: JSON.stringify({
           targetApp: 'FRANCHISE_MANAGER'

@@ -12,6 +12,9 @@
     "build:win": "npm run build && electron-builder --win --x64 --config electron-builder.json",
     "build:mac": "npm run build && electron-builder --mac --config electron-builder.json"
   },
+  "engines": {
+    "node": ">=24 <25"
+  },
   "dependencies": {
     "@capacitor-firebase/authentication": "^7.5.0",
     "@capacitor/android": "^7.6.8",
