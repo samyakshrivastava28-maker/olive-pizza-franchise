@@ -42,6 +42,12 @@ export async function fetchApi(endpoint: string, options: RequestInit = {}): Pro
   if (!headers.has('Content-Type') && !(options.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json');
   }
+  if (!headers.has('X-App-Target')) {
+    headers.set('X-App-Target', 'FRANCHISE_MANAGER');
+  }
+  if (!headers.has('X-App-Source')) {
+    headers.set('X-App-Source', 'FRANCHISE_MANAGER');
+  }
   headers.set('x-franchise-id', franchiseId);
   const deviceId = localStorage.getItem('franchise_device_id') || `dev_fra_${franchiseId}`;
   headers.set('x-device-id', deviceId);
