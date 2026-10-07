@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useFranchiseStore } from '../store/franchiseStore';
 import { auth, db } from '../lib/firebase';
-import { signInWithEmailAndPassword, signInWithPopup, signInWithCredential, GoogleAuthProvider, signOut, RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
+import { signInWithEmailAndPassword, signInWithPopup, signInWithCredential, signInWithCustomToken, GoogleAuthProvider, signOut, RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
 import { Capacitor } from '@capacitor/core';
 import { Key, Sparkles, User, ShieldCheck, Lock, Phone } from 'lucide-react';
 import { AppLogo } from '../components/common/AppLogo';
@@ -195,6 +195,11 @@ export const LoginPage: React.FC = () => {
     setGoogleLoading(true);
     try {
       let user: any = null;
+      const isElectron = Boolean(
+        typeof window !== 'undefined' && 
+        ((window as any).desktopApp?.isElectron || (window as any).electronAuth?.isDesktop)
+      );
+
       if (Capacitor.isNativePlatform()) {
         const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication');
         const res = await FirebaseAuthentication.signInWithGoogle();
@@ -203,6 +208,32 @@ export const LoginPage: React.FC = () => {
         const credential = GoogleAuthProvider.credential(idToken);
         const userCredential = await signInWithCredential(auth, credential);
         user = userCredential.user;
+      } else if (isElectron && ((window as any).desktopApp?.startBrowserAuth || (window as any).electronAuth?.startBrowserAuth)) {
+        // Desktop Electron: Authenticate via System Browser to bypass Chromium/file:// restrictions
+        toast.loading('Opening system browser to authenticate...', { id: 'browser-auth' });
+        const backendBase = 'https://olivepizza-owner.onrender.com';
+        const authUrl = `${backendBase}/api/auth/desktop-login?app=FRANCHISE_MANAGER`;
+        const authFn = (window as any).desktopApp?.startBrowserAuth || (window as any).electronAuth?.startBrowserAuth;
+        const authResult = await authFn(authUrl);
+
+        if (!authResult || !authResult.success) {
+          toast.dismiss('browser-auth');
+          throw new Error(authResult?.error || 'Authentication via browser was cancelled or timed out.');
+        }
+
+        toast.loading('Finalizing franchise session...', { id: 'browser-auth' });
+        if (authResult.customToken) {
+          const userCred = await signInWithCustomToken(auth, authResult.customToken);
+          user = userCred.user;
+        } else if (authResult.idToken) {
+          const credential = GoogleAuthProvider.credential(authResult.idToken);
+          const userCred = await signInWithCredential(auth, credential);
+          user = userCred.user;
+        } else {
+          toast.dismiss('browser-auth');
+          throw new Error('No authentication credential received from browser callback.');
+        }
+        toast.dismiss('browser-auth');
       } else {
         const provider = new GoogleAuthProvider();
         provider.setCustomParameters({ prompt: 'select_account' });
