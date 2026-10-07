@@ -189,28 +189,6 @@ export const useFranchiseStore = create<FranchiseState>((set, get) => ({
 
           // Dynamically load real branches for this franchise
           get().fetchBranches();
-        } else if (isGlobalOwner) {
-          const newSession: FranchiseSession = {
-            uid: firebaseUser.uid,
-            email: emailLower,
-            franchiseId: 'fra_rajnandgaon',
-            franchiseName: 'Olive Pizza — Rajnandgaon Franchise',
-            role: 'owner',
-            branchIds: [],
-            isAuthenticated: true
-          };
-          localStorage.setItem('franchise_id', newSession.franchiseId);
-          set({
-            user: firebaseUser,
-            session: newSession,
-            isAuthChecking: false,
-            isAuthorized: true,
-            requiresPin: false,
-            isPinVerified: true,
-            restrictedReason: null,
-            restrictedEmail: null
-          });
-          get().fetchBranches();
         } else {
           // Account not authorized for dashboard access
           const denialReason = authData?.reason || 'This account is not authorized to use this Olive Pizza application.';

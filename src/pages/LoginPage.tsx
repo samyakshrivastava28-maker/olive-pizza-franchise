@@ -91,33 +91,10 @@ export const LoginPage: React.FC = () => {
         };
       } else {
         denialReason = authData?.reason || denialReason;
-        if (resp.status !== 403 && isGlobalOwner) {
-          isAuthorized = true;
-          sessionData = {
-            uid,
-            email: normalized,
-            franchiseId: '',
-            franchiseName: 'Olive Pizza — Rajnandgaon Franchise',
-            role: 'owner',
-            branchIds: [],
-            isAuthenticated: true
-          };
-        }
       }
-    } catch (netErr) {
-      console.warn('[LoginPage] Server check network error:', netErr);
-      if (isGlobalOwner) {
-        isAuthorized = true;
-        sessionData = {
-          uid,
-          email: normalized,
-          franchiseId: '',
-          franchiseName: 'Olive Pizza — Rajnandgaon Franchise',
-          role: 'owner',
-          branchIds: [],
-          isAuthenticated: true
-        };
-      }
+    } catch (netErr: any) {
+      console.warn('[LoginPage] Server check network error:', netErr?.message || netErr);
+      denialReason = 'Network error connecting to authorization server. Please check your internet connection.';
     }
 
     if (!isAuthorized) {

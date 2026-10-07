@@ -46,24 +46,6 @@ export default function FranchisePushNotificationManager() {
     const franchiseId = session?.franchiseId || localStorage.getItem('franchise_id') || '';
 
     try {
-      // Electron Desktop App
-      if (typeof window !== 'undefined' && (window as any).electronAPI) {
-        await fetchApi('/api/notifications/token', {
-          method: 'POST',
-          body: JSON.stringify({
-            token: `franchise_desktop_${franchiseId}`,
-            platform: 'electron',
-            browser: 'electron',
-            deviceName: `Franchise Management Desktop`,
-            appName: 'franchise',
-            role: 'franchise',
-            franchiseId
-          })
-        });
-        isRegisteredRef.current = true;
-        return;
-      }
-
       // Native Capacitor on Android / iOS
       if (Capacitor.isNativePlatform()) {
         await createChannels();
@@ -118,7 +100,7 @@ export default function FranchisePushNotificationManager() {
         if (supported) {
           const messaging = getMessaging(app);
           const currentToken = await getToken(messaging, {
-            vapidKey: 'BDfxvZSqSw6Es3dvXz4VZMwjNFKMCCfRSgdCVty3rfqqBZ6AAWFlZ2EwWQR8ltp6DRMTUKOmH9Rlu0fjCziOKDk',
+            vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY || 'BDfxvZSqSw6Es3dvXz4VZMwjNFKMCCfRSgdCVty3rfqqBZ6AAWFlZ2EwWQR8ltp6DRMTUKOmH9Rlu0fjCziOKDk',
             serviceWorkerRegistration: swReg || undefined
           }).catch(() => null);
 
