@@ -1,4 +1,4 @@
-name: Build macOS — Franchise
+name: Build macOS â€” Franchise
 
 on:
   push:
@@ -20,13 +20,13 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
           cache: 'npm'
       - run: npm ci --legacy-peer-deps
       - name: Build frontend
         run: npm run build
         env:
-          VITE_API_BASE_URL: https://olivepizza-owner.onrender.com
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL || 'https://olivepizza-owner.onrender.com' }}
           VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
           VITE_FIREBASE_PROJECT_ID: olive-pizza-08
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
@@ -61,7 +61,7 @@ jobs:
 
           # Ensure 'latest' release exists or create it
           gh release view latest --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1 || \
-            gh release create latest --repo "${GITHUB_REPOSITORY}" --title "Olive Pizza Franchise — Latest Release" --notes "Latest official builds for Olive Pizza Franchise."
+            gh release create latest --repo "${GITHUB_REPOSITORY}" --title "Olive Pizza Franchise â€” Latest Release" --notes "Latest official builds for Olive Pizza Franchise."
 
           # Delete ANY old .dmg assets from 'latest' release so only the latest commit file exists
           OLD_DMGS=$(gh release view latest --repo "${GITHUB_REPOSITORY}" --json assets --jq '.assets[] | select(.name | test("\\.dmg$")) | .name')
@@ -81,7 +81,7 @@ jobs:
         run: |
           COMMIT_NUM=$(git rev-list --count HEAD)
           if ls artifact/*.dmg 2>/dev/null; then
-            echo "## macOS Build: MACOS_BUILD_READY — **File**: olivepizza-franchise-${COMMIT_NUM}.dmg" >> $GITHUB_STEP_SUMMARY
+            echo "## macOS Build: MACOS_BUILD_READY â€” **File**: olivepizza-franchise-${COMMIT_NUM}.dmg" >> $GITHUB_STEP_SUMMARY
           else
             echo "## macOS Build: MACOS_BUILD_FAILED" >> $GITHUB_STEP_SUMMARY
           fi
