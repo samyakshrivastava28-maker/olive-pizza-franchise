@@ -10,6 +10,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-macos-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build-macos:
     runs-on: macos-latest
@@ -50,6 +54,7 @@ jobs:
           name: OlivePizzaFranchise-macOS-Installer
           path: artifact/*.dmg
           retention-days: 14
+          if-no-files-found: error
 
       # Publish to GitHub Release (Only Latest Commit Files)
       - name: Publish to GitHub Release
