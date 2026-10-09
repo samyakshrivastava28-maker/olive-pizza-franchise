@@ -207,11 +207,18 @@ jobs:
       - name: Build Summary
         run: |
           COMMIT_NUM=$(git rev-list --count HEAD)
-          echo "## ?? Olive Pizza Franchise Android Build Succeeded" >> $GITHUB_STEP_SUMMARY
+          echo "## 🏢 Olive Pizza Franchise Android Build Succeeded" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Status:** ? ANDROID_APK_READY" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status:** ✅ ANDROID_APK_READY" >> $GITHUB_STEP_SUMMARY
           echo "- **Artifact:** OlivePizzaFranchise-Android-APK (available under Actions > Artifacts)" >> $GITHUB_STEP_SUMMARY
           echo "- **Package ID:** \`in.olivepizza.franchise\`" >> $GITHUB_STEP_SUMMARY
           echo "- **APK File:** \`olivepizza-franchise-${COMMIT_NUM}.apk\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Signing Keystore:** Stable Release Keystore (SHA1: 4C:6B:4A:1E:7D:43:96:6D:74:82:17:5F:08:D8:87:E5:3B:C4:B5:7E)" >> $GITHUB_STEP_SUMMARY
           echo "- **Backend Endpoint:** https://olivepizza-owner.onrender.com" >> $GITHUB_STEP_SUMMARY
+
+      # 17. Cleanup Keystore (Fail-Closed Sandbox Hygiene)
+      - name: Cleanup Keystore
+        if: always()
+        run: |
+          rm -f android/app/release.keystore
+          echo "🧹 Temporary release keystore removed."
