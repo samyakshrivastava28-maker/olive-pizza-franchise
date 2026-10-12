@@ -165,13 +165,37 @@ export const useFranchiseStore = create<FranchiseState>((set, get) => ({
 
         if (resp.ok && authData?.authorized) {
           const u = authData.user;
-          const isOwnerRole = u.role === 'owner' || u.role === 'platform_owner' || isGlobalOwner;
+          const resolvedRole = String(u?.role || '').toLowerCase();
+          const isOwnerRole = ['owner', 'platform_owner'].includes(resolvedRole) || isGlobalOwner;
+
+          // Never fall back to "owner" or bypass app authorization in the client.
+          if (isOwnerRole || !resolvedRole) {
+            const denialReason = isOwnerRole
+              ? 'Owner accounts must use the Owner app. Ask the Owner to authorize a separate franchise manager account.'
+              : 'The authorization service did not return a valid role for this application.';
+            await signOut(auth).catch(() => {});
+            localStorage.removeItem('franchise_id');
+            sessionStorage.clear();
+            set({
+              user: null,
+              session: null,
+              isAuthChecking: false,
+              isAuthorized: false,
+              isPinVerified: false,
+              requiresPin: false,
+              authStatus: null,
+              restrictedReason: denialReason,
+              restrictedEmail: emailLower
+            });
+            return;
+          }
+
           const newSession: FranchiseSession = {
             uid: firebaseUser.uid,
             email: emailLower,
             franchiseId: u.franchiseId || 'fra_rajnandgaon',
             franchiseName: u.franchiseName || 'Olive Pizza — Rajnandgaon Franchise',
-            role: (u.role as any) || 'owner',
+            role: resolvedRole as any,
             branchIds: u.branchIds || [],
             isAuthenticated: true
           };

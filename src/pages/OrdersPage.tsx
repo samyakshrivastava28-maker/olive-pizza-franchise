@@ -22,61 +22,33 @@ export const OrdersPage: React.FC = () => {
   const { session } = useFranchiseStore();
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
 
   const loadOrders = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const fId = session?.franchiseId || '';
+      if (!fId) {
+        setOrders([]);
+        setLoadError('Your account has no assigned franchise. Ask the Owner to assign your account.');
+        return;
+      }
+
       const res = await fetchApi(`/api/franchises/${fId}/live-orders`);
-      if (res && res.orders) {
+      if (res && res.success !== false && Array.isArray(res.orders)) {
         setOrders(res.orders);
       } else {
-        // Fallback default sample orders
-        setOrders([
-          {
-            id: 'ord_101',
-            orderNumber: 'OP-8291',
-            customerName: 'Rohit Sharma',
-            customerPhone: '+91 98261 11223',
-            deliveryAddress: 'House 44, Kailash Nagar, Rajnandgaon',
-            branchName: 'Olive Pizza — Rajnandgaon',
-            source: 'ONLINE_APP',
-            status: 'PREPARING',
-            totalAmount: 580,
-            paymentMethod: 'UPI',
-            paymentStatus: 'PAID',
-            items: [
-              { name: 'Farm Fresh Deluxe Pizza (Medium)', quantity: 1, price: 399 },
-              { name: 'Garlic Breadsticks', quantity: 1, price: 129 },
-              { name: 'Coke 500ml', quantity: 1, price: 52 }
-            ],
-            createdAt: new Date(Date.now() - 12 * 60 * 1000).toISOString()
-          },
-          {
-            id: 'ord_102',
-            orderNumber: 'OP-8292',
-            customerName: 'Ananya Verma',
-            customerPhone: '+91 97130 55441',
-            deliveryAddress: 'Table #4 (Dine-In)',
-            branchName: 'Olive Pizza — Rajnandgaon',
-            source: 'POS_DINE_IN',
-            status: 'ACCEPTED',
-            totalAmount: 740,
-            paymentMethod: 'CASH',
-            paymentStatus: 'PAID',
-            items: [
-              { name: 'Paneer Makhani Feast (Large)', quantity: 1, price: 599 },
-              { name: 'Cheese Dip', quantity: 2, price: 70 }
-            ],
-            createdAt: new Date(Date.now() - 5 * 60 * 1000).toISOString()
-          }
-        ]);
+        setOrders([]);
+        setLoadError(res?.error || res?.message || 'Live orders are unavailable. Check the connection and retry.');
       }
     } catch (err) {
       console.warn('[OrdersPage] Load error:', err);
+      setOrders([]);
+      setLoadError('Unable to load live orders. Check the backend connection and retry.');
     } finally {
       setLoading(false);
     }
@@ -157,7 +129,7 @@ export const OrdersPage: React.FC = () => {
       <div className="block md:hidden space-y-3">
         {filteredOrders.length === 0 ? (
           <div className="p-8 text-center bg-slate-900/60 border border-slate-800 rounded-2xl">
-            <p className="text-xs text-slate-400">No orders match current filter.</p>
+            <p className="text-xs text-slate-400">{loadError || 'No orders match current filter.'}</p>
           </div>
         ) : (
           filteredOrders.map((o) => (
@@ -238,7 +210,13 @@ export const OrdersPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 text-slate-300">
-              {filteredOrders.map((o) => (
+              {filteredOrders.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="p-8 text-center text-xs text-slate-400">
+                    {loadError || 'No orders match current filter.'}
+                  </td>
+                </tr>
+              ) : filteredOrders.map((o) => (
                 <tr key={o.id} className="hover:bg-slate-800/40 transition">
                   <td className="p-4">
                     <span className="font-mono font-bold text-white block">{o.orderNumber || o.id}</span>
