@@ -79,16 +79,23 @@ export const LoginPage: React.FC = () => {
 
       if (resp.ok && authData?.authorized) {
         const u = authData.user;
-        isAuthorized = true;
-        sessionData = {
-          uid,
-          email: normalized,
-          franchiseId: u.franchiseId || '',
-          franchiseName: u.franchiseName || 'Olive Pizza — Rajnandgaon Franchise',
-          role: u.role as any,
-          branchIds: u.branchIds || [],
-          isAuthenticated: true
-        };
+        const resolvedRole = String(u?.role || '').toLowerCase();
+        if (isGlobalOwner || ['owner', 'platform_owner'].includes(resolvedRole)) {
+          denialReason = 'Owner accounts must use the Owner app. Ask the Owner to authorize a separate franchise manager account.';
+        } else if (!resolvedRole) {
+          denialReason = 'The authorization service did not return a valid role for this application.';
+        } else {
+          isAuthorized = true;
+          sessionData = {
+            uid,
+            email: normalized,
+            franchiseId: u.franchiseId || '',
+            franchiseName: u.franchiseName || 'Olive Pizza — Rajnandgaon Franchise',
+            role: resolvedRole as any,
+            branchIds: u.branchIds || [],
+            isAuthenticated: true
+          };
+        }
       } else {
         denialReason = authData?.reason || denialReason;
       }
