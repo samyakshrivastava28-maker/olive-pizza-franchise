@@ -1,4 +1,4 @@
-name: Build Android APK � Franchise
+name: Build Android APK - Franchise
 
 on:
   push:
