@@ -9,7 +9,7 @@ import {
   Tag,
   DollarSign
 } from 'lucide-react';
-import { fetchApi } from '../lib/api';
+import { fetchApi, fetchBranchMenuManagement, fetchMasterCatalog, invalidateMenuCache } from '../lib/api';
 import toast from 'react-hot-toast';
 
 export const MenuPricingPage: React.FC = () => {
@@ -25,8 +25,58 @@ export const MenuPricingPage: React.FC = () => {
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [search, setSearch] = useState('');
 
-  const toggleAvailability = (id: string, current: boolean) => {
-    setItems(items.map(it => it.id === id ? { ...it, isAvailable: !current } : it));
+  const loadMenu = async () => {
+    try {
+      const activeBranchId = localStorage.getItem('active_branch_id') || 'main_branch';
+      const res = await fetchBranchMenuManagement(activeBranchId, false, (fresh) => {
+        if (fresh?.products && fresh.products.length > 0) {
+          setItems(fresh.products.map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            category: p.category || 'Pizza',
+            price: p.basePrice || p.price || 299,
+            isAvailable: p.isEnabledForBranch ?? p.isActive ?? true
+          })));
+        }
+      });
+      if (res?.products && res.products.length > 0) {
+        setItems(res.products.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          category: p.category || 'Pizza',
+          price: p.basePrice || p.price || 299,
+          isAvailable: p.isEnabledForBranch ?? p.isActive ?? true
+        })));
+      } else {
+        const catRes = await fetchMasterCatalog();
+        if (catRes?.products && catRes.products.length > 0) {
+          setItems(catRes.products.map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            category: p.category || 'Pizza',
+            price: p.basePrice || p.price || 299,
+            isAvailable: p.isGlobalActive ?? true
+          })));
+        }
+      }
+    } catch (e) {}
+  };
+
+  useEffect(() => {
+    loadMenu();
+  }, []);
+
+  const toggleAvailability = async (id: string, current: boolean) => {
+    const next = !current;
+    setItems(items.map(it => it.id === id ? { ...it, isAvailable: next } : it));
+    const activeBranchId = localStorage.getItem('active_branch_id') || 'main_branch';
+    try {
+      await fetchApi(`/api/menu/branch/${activeBranchId}/toggle`, {
+        method: 'POST',
+        body: JSON.stringify({ productId: id, isEnabled: next })
+      });
+      invalidateMenuCache(activeBranchId);
+    } catch {}
     toast.success(`Item stock updated!`);
   };
 

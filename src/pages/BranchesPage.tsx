@@ -14,7 +14,7 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import { useFranchiseStore } from '../store/franchiseStore';
-import { fetchApi } from '../lib/api';
+import { fetchApi, fetchFranchiseRestaurants, invalidateBranchCache } from '../lib/api';
 import toast from 'react-hot-toast';
 
 export const BranchesPage: React.FC = () => {
@@ -23,26 +23,36 @@ export const BranchesPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [selectedBranch, setSelectedBranch] = useState<any | null>(null);
 
-  const loadBranches = async () => {
-    setLoading(true);
+  const applyBranchList = (restaurants: any[]) => {
+    setBranches(restaurants.map((r: any) => ({
+      id: r.id || r.restaurantSlug,
+      name: r.name,
+      address: r.address || 'Dongargaon Rd, Rajnandgaon, CG',
+      phone: r.phone || '+91 91799 44445',
+      managerName: r.managerName || 'Assigned Manager',
+      managerEmail: r.managerEmail || 'manager@olivepizza.in',
+      isOpen: r.isOpen !== false,
+      activeOrdersCount: r.activeOrdersCount || 3,
+      todaySales: r.todaySales || 18450,
+      deliveryRadiusKm: r.deliveryRadiusKm || 5,
+      openingTime: r.openingTime || '10:00 AM',
+      closingTime: r.closingTime || '11:00 PM'
+    })));
+  };
+
+  const loadBranches = async (forceRefresh = false) => {
+    if (branches.length === 0) {
+      setLoading(true);
+    }
     try {
       const fId = session?.franchiseId || '';
-      const res = await fetchApi(`/api/franchises/${fId}/restaurants`);
+      const res = await fetchFranchiseRestaurants(fId, forceRefresh, (fresh) => {
+        if (fresh && fresh.restaurants && fresh.restaurants.length > 0) {
+          applyBranchList(fresh.restaurants);
+        }
+      });
       if (res && res.restaurants && res.restaurants.length > 0) {
-        setBranches(res.restaurants.map((r: any) => ({
-          id: r.id || r.restaurantSlug,
-          name: r.name,
-          address: r.address || 'Dongargaon Rd, Rajnandgaon, CG',
-          phone: r.phone || '+91 91799 44445',
-          managerName: r.managerName || 'Assigned Manager',
-          managerEmail: r.managerEmail || 'manager@olivepizza.in',
-          isOpen: r.isOpen !== false,
-          activeOrdersCount: r.activeOrdersCount || 3,
-          todaySales: r.todaySales || 18450,
-          deliveryRadiusKm: r.deliveryRadiusKm || 5,
-          openingTime: r.openingTime || '10:00 AM',
-          closingTime: r.closingTime || '11:00 PM'
-        })));
+        applyBranchList(res.restaurants);
       }
     } catch (err) {
       console.warn('[BranchesPage] Error loading branches:', err);
@@ -62,7 +72,7 @@ export const BranchesPage: React.FC = () => {
         method: 'PATCH',
         body: JSON.stringify({ isOpen: nextStatus })
       });
-
+      invalidateBranchCache();
       setBranches(branches.map(b => b.id === branchId ? { ...b, isOpen: nextStatus } : b));
       toast.success(`Branch is now ${nextStatus ? 'OPEN' : 'CLOSED'}`);
     } catch (err: any) {
@@ -98,7 +108,7 @@ export const BranchesPage: React.FC = () => {
             />
           </div>
           <button
-            onClick={loadBranches}
+            onClick={() => loadBranches(true)}
             disabled={loading}
             className="p-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded-xl text-xs flex items-center justify-center transition min-h-[44px] min-w-[44px] cursor-pointer shrink-0"
             aria-label="Refresh branches"
