@@ -25,22 +25,20 @@ export const DashboardPage: React.FC = () => {
   const { session, branches } = useFranchiseStore();
   const [loading, setLoading] = useState(true);
   const [metrics, setMetrics] = useState({
-    todaySales: 38450,
-    todayOrders: 94,
-    activeKitchenOrders: 6,
-    completedOrders: 85,
-    posSales: 24200,
-    onlineSales: 14250,
-    activeTerminals: 3,
-    activeRiders: 4,
+    todaySales: 0,
+    todayOrders: 0,
+    activeKitchenOrders: 0,
+    completedOrders: 0,
+    posSales: 0,
+    onlineSales: 0,
+    activeTerminals: 0,
+    activeRiders: 0,
     syncStatus: 'SYNCED',
     lastSyncTime: new Date().toLocaleTimeString()
   });
 
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
-  const [alerts, setAlerts] = useState<any[]>([
-    { id: '1', item: 'Mozzarella Cheese (1kg)', branch: 'Olive Pizza — Rajnandgaon', current: 2, min: 5, level: 'CRITICAL' }
-  ]);
+  const [alerts, setAlerts] = useState<any[]>([]);
 
   const loadDashboardData = async () => {
     setLoading(true);
@@ -50,12 +48,15 @@ export const DashboardPage: React.FC = () => {
       if (res && res.success) {
         setMetrics((prev) => ({
           ...prev,
-          todaySales: res.telemetry?.todaySales || 38450,
-          todayOrders: res.telemetry?.todayOrders || 94,
-          activeKitchenOrders: res.telemetry?.activeOrders || 6,
-          completedOrders: res.telemetry?.completedOrders || 85,
-          activeTerminals: res.telemetry?.activeTerminals || 3,
-          activeRiders: res.telemetry?.activeRiders || 4
+          todaySales: Number(res.telemetry?.todaySales ?? 0),
+          todayOrders: Number(res.telemetry?.todayOrders ?? 0),
+          activeKitchenOrders: Number(res.telemetry?.activeOrders ?? 0),
+          completedOrders: Number(res.telemetry?.completedOrders ?? 0),
+          posSales: Number(res.telemetry?.posSales ?? 0),
+          onlineSales: Number(res.telemetry?.onlineSales ?? 0),
+          activeTerminals: Number(res.telemetry?.activeTerminals ?? 0),
+          activeRiders: Number(res.telemetry?.activeRiders ?? 0),
+          lastSyncTime: new Date().toLocaleTimeString()
         }));
       }
 
@@ -64,8 +65,33 @@ export const DashboardPage: React.FC = () => {
       if (ordersRes && ordersRes.orders) {
         setRecentOrders(ordersRes.orders.slice(0, 5));
       }
+
+      // Fetch real inventory low stock alerts
+      try {
+        const alertsRes = await fetchApi(`/api/inventory/alerts?franchiseId=${encodeURIComponent(fId)}`);
+        if (alertsRes && Array.isArray(alertsRes.alerts)) {
+          setAlerts(alertsRes.alerts);
+        } else {
+          setAlerts([]);
+        }
+      } catch {
+        setAlerts([]);
+      }
+
+      // Fetch real Google Sheets sync status
+      try {
+        const sheetsRes = await fetchApi(`/api/franchises/${fId}/sheets-status`);
+        if (sheetsRes && sheetsRes.status) {
+          setMetrics((prev) => ({
+            ...prev,
+            syncStatus: sheetsRes.status === 'PROVISIONING_PENDING' ? 'PENDING' : sheetsRes.status
+          }));
+        }
+      } catch {
+        // Optional
+      }
     } catch (err) {
-      console.warn('[DashboardPage] Telemetry fallback notice:', err);
+      console.warn('[DashboardPage] Telemetry fetch notice:', err);
     } finally {
       setLoading(false);
     }
@@ -145,27 +171,34 @@ export const DashboardPage: React.FC = () => {
           <h3 className="font-bold text-sm text-white flex items-center gap-2">
             <CreditCard className="w-4 h-4 text-amber-400" /> Revenue by Channel
           </h3>
-          <div className="space-y-3">
-            <div>
-              <div className="flex justify-between text-xs font-semibold mb-1">
-                <span className="text-slate-400">In-Store / POS Billing</span>
-                <span className="text-amber-400 font-mono font-bold">₹{metrics.posSales.toLocaleString('en-IN')} (63%)</span>
-              </div>
-              <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
-                <div className="h-full bg-amber-500 rounded-full" style={{ width: '63%' }} />
-              </div>
-            </div>
+          {(() => {
+            const totalSales = metrics.posSales + metrics.onlineSales;
+            const posPercent = totalSales > 0 ? Math.round((metrics.posSales / totalSales) * 100) : 0;
+            const onlinePercent = totalSales > 0 ? 100 - posPercent : 0;
+            return (
+              <div className="space-y-3">
+                <div>
+                  <div className="flex justify-between text-xs font-semibold mb-1">
+                    <span className="text-slate-400">In-Store / POS Billing</span>
+                    <span className="text-amber-400 font-mono font-bold">₹{metrics.posSales.toLocaleString('en-IN')} ({posPercent}%)</span>
+                  </div>
+                  <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                    <div className="h-full bg-amber-500 rounded-full transition-all duration-500" style={{ width: `${posPercent}%` }} />
+                  </div>
+                </div>
 
-            <div>
-              <div className="flex justify-between text-xs font-semibold mb-1">
-                <span className="text-slate-400">Online Customer Orders</span>
-                <span className="text-sky-400 font-mono font-bold">₹{metrics.onlineSales.toLocaleString('en-IN')} (37%)</span>
+                <div>
+                  <div className="flex justify-between text-xs font-semibold mb-1">
+                    <span className="text-slate-400">Online Customer Orders</span>
+                    <span className="text-sky-400 font-mono font-bold">₹{metrics.onlineSales.toLocaleString('en-IN')} ({onlinePercent}%)</span>
+                  </div>
+                  <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                    <div className="h-full bg-sky-500 rounded-full transition-all duration-500" style={{ width: `${onlinePercent}%` }} />
+                  </div>
+                </div>
               </div>
-              <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
-                <div className="h-full bg-sky-500 rounded-full" style={{ width: '37%' }} />
-              </div>
-            </div>
-          </div>
+            );
+          })()}
 
           <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between text-xs">
             <div className="flex items-center gap-2">
@@ -184,18 +217,26 @@ export const DashboardPage: React.FC = () => {
             <AlertTriangle className="w-4 h-4 text-amber-400" /> Low Stock Alerts
           </h3>
           <div className="space-y-2">
-            {alerts.map((al) => (
-              <div key={al.id} className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex items-center justify-between text-xs">
-                <div>
-                  <h4 className="font-bold text-white">{al.item}</h4>
-                  <p className="text-[10px] text-slate-400">{al.branch}</p>
-                </div>
-                <div className="text-right font-mono">
-                  <span className="text-xs font-bold text-red-400">{al.current} remaining</span>
-                  <span className="text-[10px] text-slate-500 block">Min: {al.min}</span>
-                </div>
+            {alerts.length === 0 ? (
+              <div className="p-4 bg-slate-950/60 border border-slate-800/80 rounded-xl text-center space-y-1.5">
+                <CheckCircle2 className="w-5 h-5 text-emerald-400 mx-auto" />
+                <p className="text-xs font-semibold text-slate-300">All inventory adequately stocked</p>
+                <p className="text-[10px] text-slate-500">No items below minimum reorder thresholds</p>
               </div>
-            ))}
+            ) : (
+              alerts.map((al) => (
+                <div key={al.id || al.itemId} className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex items-center justify-between text-xs">
+                  <div>
+                    <h4 className="font-bold text-white">{al.item || al.name}</h4>
+                    <p className="text-[10px] text-slate-400">{al.branch || al.branchName || 'Store'}</p>
+                  </div>
+                  <div className="text-right font-mono">
+                    <span className="text-xs font-bold text-red-400">{al.current ?? al.quantity ?? 0} {al.unit || 'units'} remaining</span>
+                    <span className="text-[10px] text-slate-500 block">Min: {al.min ?? al.minThreshold ?? 0}</span>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
