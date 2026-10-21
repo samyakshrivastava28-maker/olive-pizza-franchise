@@ -34,12 +34,18 @@ interface DeliveryPartner {
 }
 
 export const DeliveryManagementPage: React.FC = () => {
-  const { session } = useFranchiseStore();
+  const { session, branches, fetchBranches } = useFranchiseStore();
   const franchiseId = session?.franchiseId || '';
 
   const [riders, setRiders] = useState<DeliveryPartner[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddOpen, setIsAddOpen] = useState(false);
+
+  // Reassignment Modal State
+  const [reassignRider, setReassignRider] = useState<DeliveryPartner | null>(null);
+  const [targetBranchId, setTargetBranchId] = useState('');
+  const [reassignReason, setReassignReason] = useState('');
+  const [reassigning, setReassigning] = useState(false);
 
   // Add Rider Form State
   const [name, setName] = useState('');
@@ -64,7 +70,43 @@ export const DeliveryManagementPage: React.FC = () => {
 
   useEffect(() => {
     fetchRiders();
+    fetchBranches();
   }, [franchiseId]);
+
+  const handleReassignRider = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reassignRider || !targetBranchId) {
+      toast.error('Please select a target branch');
+      return;
+    }
+
+    setReassigning(true);
+    const toastId = toast.loading('Reassigning delivery partner...');
+
+    try {
+      const res = await fetchApi(`/api/franchises/${franchiseId}/riders/${reassignRider.id}/reassign`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          targetBranchId,
+          reason: reassignReason.trim() || 'Operational reassignment'
+        })
+      });
+
+      if (res && res.success) {
+        toast.success(res.message || 'Rider reassigned successfully!', { id: toastId });
+        setReassignRider(null);
+        setTargetBranchId('');
+        setReassignReason('');
+        fetchRiders();
+      } else {
+        toast.error(res?.error || 'Reassignment failed', { id: toastId });
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'Error reassigning partner', { id: toastId });
+    } finally {
+      setReassigning(false);
+    }
+  };
 
   const handleAddRider = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -261,6 +303,19 @@ export const DeliveryManagementPage: React.FC = () => {
                 </button>
 
                 <button
+                  onClick={() => {
+                    setReassignRider(r);
+                    setTargetBranchId(r.branchId || (branches[0]?.id || 'main_branch'));
+                    setReassignReason('');
+                  }}
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 bg-slate-800 text-slate-300 hover:text-amber-400 hover:bg-slate-700"
+                  title="Reassign to another branch"
+                >
+                  <MapPin size={13} />
+                  <span>Reassign</span>
+                </button>
+
+                <button
                   onClick={() => handleDeleteRider(r.id, r.name)}
                   className="p-2 text-slate-500 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition"
                   title="Remove Rider"
@@ -270,6 +325,83 @@ export const DeliveryManagementPage: React.FC = () => {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Reassign Branch Modal */}
+      {reassignRider && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl animate-in zoom-in-95 duration-150">
+            <div className="flex justify-between items-center pb-4 border-b border-slate-800">
+              <div className="space-y-0.5">
+                <h3 className="font-black text-white text-lg">Reassign Delivery Branch</h3>
+                <p className="text-xs text-slate-400">Reassigning {reassignRider.name}</p>
+              </div>
+              <button
+                onClick={() => setReassignRider(null)}
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg transition"
+              >
+                <XCircle size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleReassignRider} className="space-y-4 text-xs">
+              <div>
+                <label className="font-bold text-slate-300 block mb-1">Target Branch *</label>
+                <select
+                  required
+                  value={targetBranchId}
+                  onChange={(e) => setTargetBranchId(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-amber-500"
+                >
+                  {branches.length > 0 ? (
+                    branches.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name} ({b.id})
+                      </option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="main_branch">Main Branch (main_branch)</option>
+                      <option value="branch_01">Branch 01 (branch_01)</option>
+                      <option value="branch_02">Branch 02 (branch_02)</option>
+                    </>
+                  )}
+                </select>
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Reassignment will immediately invalidate existing active tokens and issue claims for the new branch.
+                </p>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-300 block mb-1">Reason for Reassignment</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Peak hour surge at main branch"
+                  value={reassignReason}
+                  onChange={(e) => setReassignReason(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setReassignRider(null)}
+                  className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={reassigning}
+                  className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl shadow-lg shadow-amber-500/10 transition"
+                >
+                  {reassigning ? 'Reassigning...' : 'Confirm Reassignment'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 

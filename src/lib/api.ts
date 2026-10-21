@@ -11,6 +11,9 @@ export function getApiBaseUrl(): string {
   if (import.meta.env.VITE_BACKEND_URL) {
     return import.meta.env.VITE_BACKEND_URL;
   }
+  if (typeof window !== 'undefined' && !Capacitor.isNativePlatform() && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+    return DEV_BACKEND_URL;
+  }
   return PRODUCTION_BACKEND_URL;
 }
 
