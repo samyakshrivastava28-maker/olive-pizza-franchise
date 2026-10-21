@@ -6,7 +6,7 @@ import { signInWithEmailAndPassword, signInWithPopup, signInWithCredential, sign
 import { Capacitor } from '@capacitor/core';
 import { Key, Sparkles, User, ShieldCheck, Lock, Phone } from 'lucide-react';
 import { AppLogo } from '../components/common/AppLogo';
-import { getApiUrl } from '../lib/api';
+import { getApiUrl, getApiBaseUrl, PRODUCTION_BACKEND_URL } from '../lib/api';
 import toast from 'react-hot-toast';
 import { requestPostLoginNotificationPermissions } from '../services/notificationPermissionService';
 
@@ -191,7 +191,7 @@ export const LoginPage: React.FC = () => {
       } else if (isElectron && ((window as any).desktopApp?.startBrowserAuth || (window as any).electronAuth?.startBrowserAuth)) {
         // Desktop Electron: Authenticate via System Browser to bypass Chromium/file:// restrictions
         toast.loading('Opening system browser to authenticate...', { id: 'browser-auth' });
-        const backendBase = 'https://olivepizza-owner.onrender.com';
+        const backendBase = getApiBaseUrl() || PRODUCTION_BACKEND_URL;
         const authUrl = `${backendBase}/api/auth/desktop-login?app=FRANCHISE_MANAGER`;
         const authFn = (window as any).desktopApp?.startBrowserAuth || (window as any).electronAuth?.startBrowserAuth;
         const authResult = await authFn(authUrl);
