@@ -80,13 +80,16 @@ export const LoginPage: React.FC = () => {
       if (resp.ok && authData?.authorized) {
         const u = authData.user;
         isAuthorized = true;
+        let resolvedFranchiseId = u.franchiseId || 'fra_rajnandgaon';
+        if (resolvedFranchiseId === 'fra_primary' || !resolvedFranchiseId) resolvedFranchiseId = 'fra_rajnandgaon';
+        const resolvedBranchIds = Array.isArray(u.branchIds) && u.branchIds.length > 0 ? u.branchIds : ['main_branch'];
         sessionData = {
           uid,
           email: normalized,
-          franchiseId: u.franchiseId || '',
+          franchiseId: resolvedFranchiseId,
           franchiseName: u.franchiseName || 'Olive Pizza — Rajnandgaon Franchise',
           role: u.role as any,
-          branchIds: u.branchIds || [],
+          branchIds: resolvedBranchIds,
           isAuthenticated: true
         };
       } else {
