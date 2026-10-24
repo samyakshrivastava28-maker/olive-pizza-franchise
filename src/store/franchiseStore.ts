@@ -189,8 +189,8 @@ export const useFranchiseStore = create<FranchiseState>((set, get) => ({
 
           // Dynamically load real branches for this franchise
           get().fetchBranches();
-        } else {
-          // Account not authorized for dashboard access
+        } else if (resp.status === 403 || authData?.code === 'ACCOUNT_REJECTED' || authData?.code === 'ACCOUNT_DEACTIVATED' || authData?.code === 'PENDING_OWNER_APPROVAL' || authData?.code === 'NOT_REGISTERED') {
+          // Explicit denial by server
           const denialReason = authData?.reason || 'This account is not authorized to use this Olive Pizza application.';
           const code = authData?.code || 'UNAUTHORIZED';
           console.warn('[FranchiseStore] Access restricted for account:', emailLower, code, denialReason);
@@ -213,6 +213,20 @@ export const useFranchiseStore = create<FranchiseState>((set, get) => ({
             requiresPin: false,
             authStatus: isPending ? 'PENDING_OWNER_APPROVAL' : code === 'ACCOUNT_REJECTED' ? 'ACCOUNT_REJECTED' : code === 'ACCOUNT_DEACTIVATED' ? 'ACCOUNT_DEACTIVATED' : null,
             restrictedReason: denialReason,
+            restrictedEmail: emailLower
+          });
+        } else {
+          // Server 5xx cold start, network glitch or timeout — DO NOT destroy session
+          console.warn('[FranchiseStore] Transient connectivity issue during franchise auth check:', resp.status, authData);
+          set({
+            user: firebaseUser,
+            session: null,
+            isAuthChecking: false,
+            isAuthorized: false,
+            isPinVerified: false,
+            requiresPin: false,
+            authStatus: null,
+            restrictedReason: 'Unable to connect to franchise server (waking up). Please retry in a few moments.',
             restrictedEmail: emailLower
           });
         }
