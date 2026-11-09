@@ -9,6 +9,8 @@ interface FranchiseState {
   session: FranchiseSession | null;
   isAuthChecking: boolean;
   isAuthorized: boolean;
+  isDatabaseUnavailable: boolean;
+  setDatabaseUnavailable: (val: boolean) => void;
   authStatus?: 'APPROVED' | 'PENDING_OWNER_APPROVAL' | 'ACCOUNT_REJECTED' | 'ACCOUNT_DEACTIVATED' | null;
   isPinVerified: boolean;
   requiresPin: boolean;
@@ -35,6 +37,8 @@ export const useFranchiseStore = create<FranchiseState>((set, get) => ({
   session: null,
   isAuthChecking: true,
   isAuthorized: false,
+  isDatabaseUnavailable: false,
+  setDatabaseUnavailable: (val) => set({ isDatabaseUnavailable: val }),
   authStatus: null,
   isPinVerified: false,
   requiresPin: false,
@@ -161,17 +165,67 @@ export const useFranchiseStore = create<FranchiseState>((set, get) => ({
         });
 
         const authData = await resp.json().catch(() => null);
-        const isGlobalOwner = emailLower === 'olivepizzarjn@gmail.com' || emailLower === 'webhub2811@gmail.com' || emailLower === 'olivepizzamaker@gmail.com';
 
+        // 1. Authoritative Database Outage (HTTP 503)
+        if (resp.status === 503 || authData?.code === 'DATABASE_UNAVAILABLE') {
+          console.warn('[FranchiseStore] Database temporarily unavailable (503). Retaining Firebase session.');
+          set({
+            user: firebaseUser,
+            session: null,
+            isAuthChecking: false,
+            isAuthorized: false,
+            isDatabaseUnavailable: true,
+            restrictedReason: null,
+            restrictedEmail: null
+          });
+          return;
+        }
+
+        // 2. Authorized Handshake
         if (resp.ok && authData?.authorized) {
           const u = authData.user;
-          const isOwnerRole = u.role === 'owner' || u.role === 'platform_owner' || isGlobalOwner;
+          const allowedApps: string[] = authData.allowedApps || u?.allowedApps || [];
+          if (!allowedApps.includes('FRANCHISE_MANAGER')) {
+            console.warn('[FranchiseStore] Account missing FRANCHISE_MANAGER grant in allowedApps');
+            await signOut(auth).catch(() => {});
+            localStorage.removeItem('franchise_id');
+            sessionStorage.clear();
+            set({
+              user: null,
+              session: null,
+              isAuthChecking: false,
+              isAuthorized: false,
+              isDatabaseUnavailable: false,
+              restrictedReason: 'Access denied: Your account lacks the FRANCHISE_MANAGER application grant.',
+              restrictedEmail: emailLower
+            });
+            return;
+          }
+
+          if (!u?.franchiseId) {
+            console.warn('[FranchiseStore] Account missing authoritative franchise assignment');
+            await signOut(auth).catch(() => {});
+            localStorage.removeItem('franchise_id');
+            sessionStorage.clear();
+            set({
+              user: null,
+              session: null,
+              isAuthChecking: false,
+              isAuthorized: false,
+              isDatabaseUnavailable: false,
+              restrictedReason: 'Access denied: No authoritative franchise scope assigned to your account.',
+              restrictedEmail: emailLower
+            });
+            return;
+          }
+
+          const requiresPin = Boolean(authData.requiresPin);
           const newSession: FranchiseSession = {
             uid: firebaseUser.uid,
             email: emailLower,
-            franchiseId: u.franchiseId || 'fra_rajnandgaon',
+            franchiseId: u.franchiseId,
             franchiseName: u.franchiseName || 'Olive Pizza — Rajnandgaon Franchise',
-            role: (u.role as any) || 'owner',
+            role: (u.role as any) || 'franchise_manager',
             branchIds: u.branchIds || [],
             isAuthenticated: true
           };
@@ -181,15 +235,18 @@ export const useFranchiseStore = create<FranchiseState>((set, get) => ({
             session: newSession,
             isAuthChecking: false,
             isAuthorized: true,
-            requiresPin: !isOwnerRole && !!u.hasPin,
-            isPinVerified: isOwnerRole, // Master owners don't require PIN gate
+            isDatabaseUnavailable: false,
+            requiresPin,
+            isPinVerified: !requiresPin,
+            authStatus: 'APPROVED',
             restrictedReason: null,
             restrictedEmail: null
           });
 
           // Dynamically load real branches for this franchise
           get().fetchBranches();
-        } else if (resp.status === 403 || authData?.code === 'ACCOUNT_REJECTED' || authData?.code === 'ACCOUNT_DEACTIVATED' || authData?.code === 'PENDING_OWNER_APPROVAL' || authData?.code === 'NOT_REGISTERED') {
+          return;
+        } else if (resp.status === 403 || authData?.code === 'ACCOUNT_REJECTED' || authData?.code === 'ACCOUNT_DEACTIVATED' || authData?.code === 'PENDING_OWNER_APPROVAL' || authData?.code === 'NOT_REGISTERED' || !authData?.authorized) {
           // Explicit denial by server
           const denialReason = authData?.reason || 'This account is not authorized to use this Olive Pizza application.';
           const code = authData?.code || 'UNAUTHORIZED';
@@ -211,27 +268,15 @@ export const useFranchiseStore = create<FranchiseState>((set, get) => ({
             isAuthorized: false,
             isPinVerified: false,
             requiresPin: false,
+            isDatabaseUnavailable: false,
             authStatus: isPending ? 'PENDING_OWNER_APPROVAL' : code === 'ACCOUNT_REJECTED' ? 'ACCOUNT_REJECTED' : code === 'ACCOUNT_DEACTIVATED' ? 'ACCOUNT_DEACTIVATED' : null,
             restrictedReason: denialReason,
-            restrictedEmail: emailLower
-          });
-        } else {
-          // Server 5xx cold start, network glitch or timeout — DO NOT destroy session
-          console.warn('[FranchiseStore] Transient connectivity issue during franchise auth check:', resp.status, authData);
-          set({
-            user: firebaseUser,
-            session: null,
-            isAuthChecking: false,
-            isAuthorized: false,
-            isPinVerified: false,
-            requiresPin: false,
-            authStatus: null,
-            restrictedReason: 'Unable to connect to franchise server (waking up). Please retry in a few moments.',
             restrictedEmail: emailLower
           });
         }
       } catch (err: any) {
         console.error('[FranchiseStore] Auth handshake network error:', err);
+        // Transient network error or backend cold start: Retain session, mark database unavailable
         set({
           user: firebaseUser,
           session: null,
@@ -239,9 +284,10 @@ export const useFranchiseStore = create<FranchiseState>((set, get) => ({
           isAuthorized: false,
           isPinVerified: false,
           requiresPin: false,
+          isDatabaseUnavailable: true,
           authStatus: null,
-          restrictedReason: 'Failed to verify authorization with backend. Please check your connection and retry.',
-          restrictedEmail: emailLower
+          restrictedReason: null,
+          restrictedEmail: null
         });
       }
     });

@@ -54,7 +54,6 @@ export const LoginPage: React.FC = () => {
     const userEmail = firebaseUser.email || '';
     const normalized = userEmail.toLowerCase().trim();
     const uid = firebaseUser.uid;
-    const isGlobalOwner = normalized === 'olivepizzarjn@gmail.com' || normalized === 'webhub2811@gmail.com' || normalized === 'olivepizzamaker@gmail.com';
 
     let isAuthorized = false;
     let denialReason = 'This account is not authorized to use the Olive Pizza Franchise Management portal.';
@@ -75,29 +74,81 @@ export const LoginPage: React.FC = () => {
         })
       });
 
+      // Handle Database Outage (HTTP 503)
+      if (resp.status === 503) {
+        console.warn('[LoginPage] Database temporarily unavailable (503). Retaining session.');
+        useFranchiseStore.setState({ isDatabaseUnavailable: true, isAuthorized: false });
+        const msg = 'Authoritative database is temporarily unavailable (HTTP 503). Session retained; please retry shortly.';
+        toast.error(msg);
+        return false;
+      }
+
       const authData = await resp.json().catch(() => null);
 
       if (resp.ok && authData?.authorized) {
         const u = authData.user;
+        const allowedApps: string[] = authData.allowedApps || u?.allowedApps || [];
+        if (!allowedApps.includes('FRANCHISE_MANAGER')) {
+          await signOut(auth).catch(() => {});
+          localStorage.removeItem('franchise_id');
+          sessionStorage.clear();
+          const reason = 'Access denied: Your account lacks the FRANCHISE_MANAGER application grant.';
+          useFranchiseStore.setState({
+            user: null,
+            session: null,
+            isAuthorized: false,
+            restrictedReason: reason,
+            restrictedEmail: normalized
+          });
+          throw new Error(reason);
+        }
+
+        if (!u?.franchiseId) {
+          await signOut(auth).catch(() => {});
+          localStorage.removeItem('franchise_id');
+          sessionStorage.clear();
+          const reason = 'Access denied: No authoritative franchise scope assigned to your account.';
+          useFranchiseStore.setState({
+            user: null,
+            session: null,
+            isAuthorized: false,
+            restrictedReason: reason,
+            restrictedEmail: normalized
+          });
+          throw new Error(reason);
+        }
+
         isAuthorized = true;
-        let resolvedFranchiseId = u.franchiseId || 'fra_rajnandgaon';
-        if (resolvedFranchiseId === 'fra_primary' || !resolvedFranchiseId) resolvedFranchiseId = 'fra_rajnandgaon';
-        const resolvedBranchIds = Array.isArray(u.branchIds) && u.branchIds.length > 0 ? u.branchIds : ['main_branch'];
         sessionData = {
           uid,
           email: normalized,
-          franchiseId: resolvedFranchiseId,
+          franchiseId: u.franchiseId,
           franchiseName: u.franchiseName || 'Olive Pizza — Rajnandgaon Franchise',
           role: u.role as any,
-          branchIds: resolvedBranchIds,
+          branchIds: u.branchIds || [],
           isAuthenticated: true
         };
+
+        setSession(sessionData);
+        localStorage.setItem('franchise_id', sessionData.franchiseId);
+
+        // Derive PIN requirement strictly from server response
+        if (Boolean(authData.requiresPin)) {
+          setShowPinModal(true);
+          return false;
+        }
+        return true;
       } else {
         denialReason = authData?.reason || denialReason;
       }
     } catch (netErr: any) {
-      console.warn('[LoginPage] Server check network error:', netErr?.message || netErr);
-      denialReason = 'Network error connecting to authorization server. Please check your internet connection.';
+      if (netErr?.status === 503 || netErr?.message?.includes('503')) {
+        useFranchiseStore.setState({ isDatabaseUnavailable: true, isAuthorized: false });
+        toast.error('Authoritative database is temporarily unavailable (HTTP 503). Session retained; please retry shortly.');
+        return false;
+      }
+      console.warn('[LoginPage] Server check error:', netErr?.message || netErr);
+      denialReason = netErr?.message || 'Network error connecting to authorization server. Please check your internet connection.';
     }
 
     if (!isAuthorized) {
@@ -113,16 +164,7 @@ export const LoginPage: React.FC = () => {
       });
       throw new Error(denialReason);
     }
-
-    setSession(sessionData);
-    localStorage.setItem('franchise_id', sessionData.franchiseId);
-
-    // If role is manager (not owner), require PIN unlock before navigating
-    if (sessionData.role !== 'owner' && sessionData.role !== 'platform_owner') {
-      setShowPinModal(true);
-      return false;
-    }
-    return true;
+    return false;
   };
 
   const handlePinSubmit = async (e: React.FormEvent) => {

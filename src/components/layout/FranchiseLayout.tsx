@@ -21,7 +21,7 @@ import { AppLogo } from '../common/AppLogo';
 import { useFranchiseStore } from '../../store/franchiseStore';
 
 export const FranchiseLayout: React.FC = () => {
-  const { session, isAuthChecking, isAuthorized, logout, setSession, setBranches, setTerminals } = useFranchiseStore();
+  const { session, isAuthChecking, isAuthorized, isDatabaseUnavailable, logout, setSession, setBranches, setTerminals } = useFranchiseStore();
   const navigate = useNavigate();
   const location = useLocation();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -31,9 +31,7 @@ export const FranchiseLayout: React.FC = () => {
     setIsDrawerOpen(false);
   }, [location.pathname]);
 
-  const isGlobalOwner = session?.role === 'owner' || 
-    session?.email === 'olivepizzarjn@gmail.com' || 
-    session?.email === 'webhub2811@gmail.com';
+  const isGlobalOwner = session?.allowedApps?.includes('OWNER') || session?.role === 'owner';
 
   const handleLogout = async () => {
     await logout();

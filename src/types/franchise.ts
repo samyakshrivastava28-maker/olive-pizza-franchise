@@ -6,6 +6,7 @@ export interface FranchiseSession {
   role: 'franchise_owner' | 'franchise_manager' | 'owner';
   branchIds: string[];
   isAuthenticated?: boolean;
+  allowedApps?: string[];
 }
 
 export interface Branch {
