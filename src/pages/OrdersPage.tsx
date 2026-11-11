@@ -31,52 +31,14 @@ export const OrdersPage: React.FC = () => {
     try {
       const fId = session?.franchiseId || '';
       const res = await fetchApi(`/api/franchises/${fId}/live-orders`);
-      if (res && res.orders) {
+      if (res && Array.isArray(res.orders)) {
         setOrders(res.orders);
       } else {
-        // Fallback default sample orders
-        setOrders([
-          {
-            id: 'ord_101',
-            orderNumber: 'OP-8291',
-            customerName: 'Rohit Sharma',
-            customerPhone: '+91 98261 11223',
-            deliveryAddress: 'House 44, Kailash Nagar, Rajnandgaon',
-            branchName: 'Olive Pizza — Rajnandgaon',
-            source: 'ONLINE_APP',
-            status: 'PREPARING',
-            totalAmount: 580,
-            paymentMethod: 'UPI',
-            paymentStatus: 'PAID',
-            items: [
-              { name: 'Farm Fresh Deluxe Pizza (Medium)', quantity: 1, price: 399 },
-              { name: 'Garlic Breadsticks', quantity: 1, price: 129 },
-              { name: 'Coke 500ml', quantity: 1, price: 52 }
-            ],
-            createdAt: new Date(Date.now() - 12 * 60 * 1000).toISOString()
-          },
-          {
-            id: 'ord_102',
-            orderNumber: 'OP-8292',
-            customerName: 'Ananya Verma',
-            customerPhone: '+91 97130 55441',
-            deliveryAddress: 'Table #4 (Dine-In)',
-            branchName: 'Olive Pizza — Rajnandgaon',
-            source: 'POS_DINE_IN',
-            status: 'ACCEPTED',
-            totalAmount: 740,
-            paymentMethod: 'CASH',
-            paymentStatus: 'PAID',
-            items: [
-              { name: 'Paneer Makhani Feast (Large)', quantity: 1, price: 599 },
-              { name: 'Cheese Dip', quantity: 2, price: 70 }
-            ],
-            createdAt: new Date(Date.now() - 5 * 60 * 1000).toISOString()
-          }
-        ]);
+        setOrders([]);
       }
     } catch (err) {
       console.warn('[OrdersPage] Load error:', err);
+      setOrders([]);
     } finally {
       setLoading(false);
     }
