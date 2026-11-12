@@ -14,11 +14,10 @@ import { RestaurantManagementPage } from './pages/RestaurantManagementPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { LoginPage } from './pages/LoginPage';
-import { AppRestrictedScreen } from './components/common/AppRestrictedScreen';
 import FranchisePushNotificationManager from './services/FranchisePushNotificationManager';
 
 export function App() {
-  const { session, isAuthChecking, isDatabaseUnavailable, user, restrictedReason, restrictedEmail, authStatus, clearRestricted, logout, initAuth } = useFranchiseStore();
+  const { session, isAuthChecking, isDatabaseUnavailable, user, initAuth } = useFranchiseStore();
 
   useEffect(() => {
     const unsub = initAuth();
@@ -54,25 +53,6 @@ export function App() {
           Retry Connection
         </button>
       </div>
-    );
-  }
-
-  if (restrictedReason) {
-    return (
-      <AppRestrictedScreen
-        appName="Olive Pizza Franchise Management"
-        userEmail={restrictedEmail || undefined}
-        reason={restrictedReason}
-        status={authStatus}
-        onRetry={() => {
-          clearRestricted();
-          initAuth();
-        }}
-        onSignOut={async () => {
-          clearRestricted();
-          await logout();
-        }}
-      />
     );
   }
 

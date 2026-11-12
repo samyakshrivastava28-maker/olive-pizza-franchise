@@ -1,569 +1,519 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useFranchiseStore } from '../store/franchiseStore';
-import { auth, db } from '../lib/firebase';
-import { signInWithEmailAndPassword, signInWithPopup, signInWithCredential, signInWithCustomToken, GoogleAuthProvider, signOut, RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
-import { Capacitor } from '@capacitor/core';
-import { Key, Sparkles, User, ShieldCheck, Lock, Phone } from 'lucide-react';
+import { auth } from '../lib/firebase';
+import { signInWithCustomToken } from 'firebase/auth';
+import { 
+  Mail, 
+  Phone, 
+  ShieldCheck, 
+  ArrowRight, 
+  AlertCircle, 
+  RotateCcw, 
+  ArrowLeft, 
+  Lock, 
+  Store
+} from 'lucide-react';
 import { AppLogo } from '../components/common/AppLogo';
-import { getApiUrl, getApiBaseUrl, PRODUCTION_BACKEND_URL } from '../lib/api';
+import { getApiUrl } from '../lib/api';
 import toast from 'react-hot-toast';
 import { requestPostLoginNotificationPermissions } from '../services/notificationPermissionService';
 
 export const LoginPage: React.FC = () => {
+  // Step 1: 'check' (Account Eligibility), Step 2: 'verify' (6-Digit Temporary Code)
+  const [step, setStep] = useState<'check' | 'verify'>('check');
   const [authMethod, setAuthMethod] = useState<'email' | 'phone'>('email');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [phone, setPhone] = useState('');
-  const [phoneOtp, setPhoneOtp] = useState('');
-  const [confirmationResult, setConfirmationResult] = useState<any>(null);
-  const [otpSent, setOtpSent] = useState(false);
-  const [phoneLoading, setPhoneLoading] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
-  const [showPinModal, setShowPinModal] = useState(false);
-  const [pinInput, setPinInput] = useState('');
-  const [pinLoading, setPinLoading] = useState(false);
-  const setSession = useFranchiseStore((s) => s.setSession);
-  const verifyPin = useFranchiseStore((s) => s.verifyPin);
+  const [identifierInput, setIdentifierInput] = useState('');
+  
+  // Verification Code State
+  const [code, setCode] = useState(['', '', '', '', '', '']);
+  const [verifiedEmail, setVerifiedEmail] = useState('');
+  const [maskedEmail, setMaskedEmail] = useState('');
+  const [resolvedName, setResolvedName] = useState('');
+  
+  // Timers & Loading
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [isResending, setIsResending] = useState(false);
+
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const navigate = useNavigate();
+  const { session, isAuthorized, clearRestricted } = useFranchiseStore();
 
-  const formatAuthError = (err: any) => {
-    const code = err?.code || '';
-    switch (code) {
-      case 'auth/invalid-credential':
-      case 'auth/wrong-password':
-      case 'auth/user-not-found':
-        return 'Invalid email or password. Please check your credentials.';
-      case 'auth/invalid-email':
-        return 'Please enter a valid email address.';
-      case 'auth/user-disabled':
-        return 'This franchise account has been disabled. Please contact Olive Pizza administration.';
-      case 'auth/too-many-requests':
-        return 'Too many failed login attempts. Please try again later.';
-      case 'auth/network-request-failed':
-        return 'Network error. Please check your internet connection.';
-      case 'auth/popup-closed-by-user':
-        return '';
-      default:
-        return err?.message || 'Franchise login failed. Please try again.';
+  // Redirect if already logged in
+  useEffect(() => {
+    if (isAuthorized && session) {
+      navigate('/dashboard', { replace: true });
     }
-  };
+  }, [isAuthorized, session, navigate]);
 
-  const verifyFranchiseRole = async (firebaseUser: any) => {
-    const userEmail = firebaseUser.email || '';
-    const normalized = userEmail.toLowerCase().trim();
-    const uid = firebaseUser.uid;
+  // Clear any existing restricted blocks on mount
+  useEffect(() => {
+    clearRestricted();
+  }, [clearRestricted]);
 
-    let isAuthorized = false;
-    let denialReason = 'This account is not authorized to use the Olive Pizza Franchise Management portal.';
-    let sessionData: any = null;
+  // Countdown timer for code resend
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldown(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
+
+  // Handle Step 1: Pre-check Account Eligibility
+  const handleCheckEligibility = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    const cleanInput = identifierInput.trim();
+    if (!cleanInput) {
+      setError(authMethod === 'email' ? 'Please enter your registered email address.' : 'Please enter your 10-digit mobile number.');
+      return;
+    }
+
+    if (authMethod === 'email' && !cleanInput.includes('@')) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+
+    if (authMethod === 'phone' && cleanInput.replace(/\D/g, '').length < 10) {
+      setError('Please enter a valid 10-digit mobile phone number.');
+      return;
+    }
+
+    setIsLoading(true);
 
     try {
-      const idToken = await firebaseUser.getIdToken();
-      const resp = await fetch(getApiUrl('api/auth/authorize-app'), {
+      const res = await fetch(getApiUrl('api/auth/management/check-eligibility'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${idToken}`,
           'X-App-Target': 'FRANCHISE_MANAGER',
           'X-App-Source': 'FRANCHISE_MANAGER'
         },
         body: JSON.stringify({
+          identifier: cleanInput,
           targetApp: 'FRANCHISE_MANAGER'
         })
       });
 
-      // Handle Database Outage (HTTP 503)
-      if (resp.status === 503) {
-        console.warn('[LoginPage] Database temporarily unavailable (503). Retaining session.');
-        useFranchiseStore.setState({ isDatabaseUnavailable: true, isAuthorized: false });
-        const msg = 'Authoritative database is temporarily unavailable (HTTP 503). Session retained; please retry shortly.';
-        toast.error(msg);
-        return false;
+      const resp = await res.json();
+
+      if (!resp.success || !resp.eligible) {
+        setError(resp.message || 'This account is not verified or authorized for Franchise Management. Please contact Olive Pizza administration.');
+        setIsLoading(false);
+        return;
       }
 
-      const authData = await resp.json().catch(() => null);
+      setVerifiedEmail(resp.email || cleanInput);
+      setMaskedEmail(resp.maskedEmail || resp.email || cleanInput);
+      setResolvedName(resp.name || 'Franchise Partner');
+      setResendCooldown(60);
+      setCode(['', '', '', '', '', '']);
+      setStep('verify');
+      toast.success(resp.message || 'Verification code sent to your email!');
 
-      if (resp.ok && authData?.authorized) {
-        const u = authData.user;
-        const allowedApps: string[] = authData.allowedApps || u?.allowedApps || [];
-        if (!allowedApps.includes('FRANCHISE_MANAGER')) {
-          await signOut(auth).catch(() => {});
-          localStorage.removeItem('franchise_id');
-          sessionStorage.clear();
-          const reason = 'Access denied: Your account lacks the FRANCHISE_MANAGER application grant.';
-          useFranchiseStore.setState({
-            user: null,
-            session: null,
-            isAuthorized: false,
-            restrictedReason: reason,
-            restrictedEmail: normalized
-          });
-          throw new Error(reason);
-        }
-
-        if (!u?.franchiseId) {
-          await signOut(auth).catch(() => {});
-          localStorage.removeItem('franchise_id');
-          sessionStorage.clear();
-          const reason = 'Access denied: No authoritative franchise scope assigned to your account.';
-          useFranchiseStore.setState({
-            user: null,
-            session: null,
-            isAuthorized: false,
-            restrictedReason: reason,
-            restrictedEmail: normalized
-          });
-          throw new Error(reason);
-        }
-
-        isAuthorized = true;
-        sessionData = {
-          uid,
-          email: normalized,
-          franchiseId: u.franchiseId,
-          franchiseName: u.franchiseName || 'Olive Pizza — Rajnandgaon Franchise',
-          role: u.role as any,
-          branchIds: u.branchIds || [],
-          isAuthenticated: true
-        };
-
-        setSession(sessionData);
-        localStorage.setItem('franchise_id', sessionData.franchiseId);
-
-        // Derive PIN requirement strictly from server response
-        if (Boolean(authData.requiresPin)) {
-          setShowPinModal(true);
-          return false;
-        }
-        return true;
-      } else {
-        denialReason = authData?.reason || denialReason;
-      }
-    } catch (netErr: any) {
-      if (netErr?.status === 503 || netErr?.message?.includes('503')) {
-        useFranchiseStore.setState({ isDatabaseUnavailable: true, isAuthorized: false });
-        toast.error('Authoritative database is temporarily unavailable (HTTP 503). Session retained; please retry shortly.');
-        return false;
-      }
-      console.warn('[LoginPage] Server check error:', netErr?.message || netErr);
-      denialReason = netErr?.message || 'Network error connecting to authorization server. Please check your internet connection.';
+      setTimeout(() => {
+        inputRefs.current[0]?.focus();
+      }, 100);
+    } catch (err: any) {
+      setError(err?.message || 'Unable to verify account eligibility. Please check your connection and retry.');
+    } finally {
+      setIsLoading(false);
     }
+  };
 
-    if (!isAuthorized) {
-      await signOut(auth).catch(() => {});
-      localStorage.removeItem('franchise_id');
-      sessionStorage.clear();
-      useFranchiseStore.setState({
-        user: null,
-        session: null,
-        isAuthorized: false,
-        restrictedReason: denialReason,
-        restrictedEmail: normalized
+  // Handle Step 2: Code Digit Input
+  const handleDigitChange = (index: number, val: string) => {
+    const clean = val.replace(/\D/g, '');
+    if (!clean && val !== '') return;
+
+    const newCode = [...code];
+
+    if (clean.length > 1) {
+      const pastedDigits = clean.slice(0, 6).split('');
+      pastedDigits.forEach((d, i) => {
+        if (i < 6) newCode[i] = d;
       });
-      throw new Error(denialReason);
-    }
-    return false;
-  };
-
-  const handlePinSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!pinInput || pinInput.length < 4) {
-      toast.error('Please enter your 4 to 6 digit security PIN.');
+      setCode(newCode);
+      const nextFocus = Math.min(pastedDigits.length, 5);
+      inputRefs.current[nextFocus]?.focus();
       return;
     }
-    setPinLoading(true);
-    try {
-      const res = await verifyPin(pinInput);
-      if (res.success) {
-        toast.success('PIN verified! Unlocking franchise dashboard... 🍕');
-        setShowPinModal(false);
-        requestPostLoginNotificationPermissions().catch(() => {});
-        navigate('/dashboard');
-      } else {
-        toast.error(res.error || 'Incorrect PIN');
-      }
-    } finally {
-      setPinLoading(false);
+
+    newCode[index] = clean;
+    setCode(newCode);
+
+    if (clean && index < 5) {
+      inputRefs.current[index + 1]?.focus();
     }
   };
 
-  const handleEmailLogin = async (e: React.FormEvent) => {
+  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace' && !code[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent) => {
     e.preventDefault();
-    if (!email) {
-      toast.error('Please enter your franchise email address.');
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (pasted.length > 0) {
+      const newCode = ['', '', '', '', '', ''];
+      pasted.split('').forEach((d, i) => {
+        newCode[i] = d;
+      });
+      setCode(newCode);
+      const nextFocus = Math.min(pasted.length, 5);
+      inputRefs.current[nextFocus]?.focus();
+    }
+  };
+
+  // Handle Resend Verification Code
+  const handleResendCode = async () => {
+    if (resendCooldown > 0 || isResending || !verifiedEmail) return;
+
+    setIsResending(true);
+    setError(null);
+
+    try {
+      const res = await fetch(getApiUrl('api/auth/management/resend-code'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: verifiedEmail })
+      });
+
+      const resp = await res.json();
+      if (!resp.success) {
+        setError(resp.message || 'Failed to resend code. Please wait before retrying.');
+        return;
+      }
+
+      setResendCooldown(60);
+      setCode(['', '', '', '', '', '']);
+      inputRefs.current[0]?.focus();
+      toast.success('Fresh verification code sent to your email.');
+    } catch (err: any) {
+      setError(err?.message || 'Network error while requesting new code.');
+    } finally {
+      setIsResending(false);
+    }
+  };
+
+  // Handle Step 2: Verify Code and Sign In
+  const handleVerifyCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    const fullCode = code.join('').trim();
+    if (fullCode.length !== 6) {
+      setError('Please enter the complete 6-digit verification code.');
       return;
     }
-    setLoading(true);
+
+    setIsLoading(true);
 
     try {
-      const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
-      const ready = await verifyFranchiseRole(cred.user);
-      if (ready) {
-        toast.success('Welcome to Franchise Management! 🍕');
-        requestPostLoginNotificationPermissions().catch(() => {});
-        navigate('/dashboard');
+      const res = await fetch(getApiUrl('api/auth/management/verify-code-signin'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-App-Target': 'FRANCHISE_MANAGER',
+          'X-App-Source': 'FRANCHISE_MANAGER'
+        },
+        body: JSON.stringify({
+          email: verifiedEmail,
+          code: fullCode,
+          targetApp: 'FRANCHISE_MANAGER'
+        })
+      });
+
+      const resp = await res.json();
+      if (!resp.success || !resp.customToken) {
+        setError(resp.message || 'Invalid or expired verification code. Please check your email or request a new code.');
+        setIsLoading(false);
+        return;
       }
+
+      // Sign in to Firebase Auth using verified Custom Token
+      const userCredential = await signInWithCustomToken(auth, resp.customToken);
+      const user = userCredential.user;
+      const u = resp.user || {};
+
+      useFranchiseStore.setState({
+        user,
+        session: {
+          uid: user.uid,
+          email: user.email || verifiedEmail,
+          role: (u.role === 'owner' ? 'owner' : 'franchise_manager') as any,
+          franchiseId: u.franchiseId || 'fra_rajnandgaon',
+          franchiseName: 'Olive Pizza — Rajnandgaon HQ',
+          branchIds: [u.branchId || 'branch_rjn_main'],
+          isAuthenticated: true,
+          allowedApps: u.allowedApps || ['FRANCHISE_MANAGER', 'RESTAURANT_MANAGER', 'POS', 'DELIVERY', 'OWNER']
+        },
+        isAuthorized: true,
+        isAuthChecking: false,
+        restrictedReason: null,
+        restrictedEmail: null
+      });
+
+      toast.success(`Welcome back, ${u.name || resolvedName || 'Partner'}!`);
+      requestPostLoginNotificationPermissions().catch(() => {});
+      navigate('/dashboard', { replace: true });
     } catch (err: any) {
-      const msg = formatAuthError(err);
-      if (msg) toast.error(msg);
+      console.error('[LoginPage] Sign in verification error:', err);
+      setError(err?.message || 'Verification failed. Please check your code or request a new one.');
     } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleGoogleSignIn = async () => {
-    setGoogleLoading(true);
-    try {
-      let user: any = null;
-      const isElectron = Boolean(
-        typeof window !== 'undefined' && 
-        ((window as any).desktopApp?.isElectron || (window as any).electronAuth?.isDesktop)
-      );
-
-      if (Capacitor.isNativePlatform()) {
-        const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication');
-        const res = await FirebaseAuthentication.signInWithGoogle();
-        const idToken = res.credential?.idToken;
-        if (!idToken) throw new Error('Failed to get Google ID token on mobile device.');
-        const credential = GoogleAuthProvider.credential(idToken);
-        const userCredential = await signInWithCredential(auth, credential);
-        user = userCredential.user;
-      } else if (isElectron && ((window as any).desktopApp?.startBrowserAuth || (window as any).electronAuth?.startBrowserAuth)) {
-        // Desktop Electron: Authenticate via System Browser to bypass Chromium/file:// restrictions
-        toast.loading('Opening system browser to authenticate...', { id: 'browser-auth' });
-        const backendBase = getApiBaseUrl() || PRODUCTION_BACKEND_URL;
-        const authUrl = `${backendBase}/api/auth/desktop-login?app=FRANCHISE_MANAGER`;
-        const authFn = (window as any).desktopApp?.startBrowserAuth || (window as any).electronAuth?.startBrowserAuth;
-        const authResult = await authFn(authUrl);
-
-        if (!authResult || !authResult.success) {
-          toast.dismiss('browser-auth');
-          throw new Error(authResult?.error || 'Authentication via browser was cancelled or timed out.');
-        }
-
-        toast.loading('Finalizing franchise session...', { id: 'browser-auth' });
-        if (authResult.customToken) {
-          const userCred = await signInWithCustomToken(auth, authResult.customToken);
-          user = userCred.user;
-        } else if (authResult.idToken) {
-          const credential = GoogleAuthProvider.credential(authResult.idToken);
-          const userCred = await signInWithCredential(auth, credential);
-          user = userCred.user;
-        } else {
-          toast.dismiss('browser-auth');
-          throw new Error('No authentication credential received from browser callback.');
-        }
-        toast.dismiss('browser-auth');
-      } else {
-        const provider = new GoogleAuthProvider();
-        provider.setCustomParameters({ prompt: 'select_account' });
-        const result = await signInWithPopup(auth, provider);
-        user = result.user;
-      }
-
-      if (!user?.email) throw new Error('Google account missing email address.');
-
-      const ready = await verifyFranchiseRole(user);
-      if (ready) {
-        toast.success(`Welcome back, ${user.displayName || 'Franchise Partner'}! 🍕`);
-        requestPostLoginNotificationPermissions().catch(() => {});
-        navigate('/dashboard');
-      }
-    } catch (err: any) {
-      const msg = formatAuthError(err);
-      if (msg) toast.error(msg);
-    } finally {
-      setGoogleLoading(false);
-    }
-  };
-
-  const handleSendPhoneOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!phone || phone.replace(/\D/g, '').length < 10) {
-      toast.error('Please enter a valid 10-digit mobile number');
-      return;
-    }
-    setPhoneLoading(true);
-    try {
-      let recaptcha = (window as any).recaptchaVerifier;
-      if (!recaptcha) {
-        recaptcha = new RecaptchaVerifier(auth, 'phone-recaptcha-container', {
-          size: 'invisible',
-        });
-        (window as any).recaptchaVerifier = recaptcha;
-      }
-      const rawDigits = phone.replace(/\D/g, '').slice(-10);
-      const formatted = `+91${rawDigits}`;
-      const confirmation = await signInWithPhoneNumber(auth, formatted, recaptcha);
-      setConfirmationResult(confirmation);
-      setOtpSent(true);
-      toast.success('6-digit SMS code dispatched!');
-    } catch (err: any) {
-      console.error('[LoginPage] Phone OTP error:', err);
-      toast.error(err.message || 'Failed to dispatch SMS code');
-    } finally {
-      setPhoneLoading(false);
-    }
-  };
-
-  const handleVerifyPhoneOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!phoneOtp || phoneOtp.length !== 6) {
-      toast.error('Enter 6-digit SMS verification code');
-      return;
-    }
-    setPhoneLoading(true);
-    try {
-      const res = await confirmationResult.confirm(phoneOtp);
-      const ready = await verifyFranchiseRole(res.user);
-      if (ready) {
-        toast.success('Welcome to Franchise Management! 🍕');
-        requestPostLoginNotificationPermissions().catch(() => {});
-        navigate('/dashboard');
-      }
-    } catch (err: any) {
-      toast.error(err.message || 'Incorrect verification code');
-    } finally {
-      setPhoneLoading(false);
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen w-screen bg-slate-950 text-white flex flex-col items-center justify-center p-3.5 sm:p-6">
-      <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-8 shadow-2xl space-y-5 sm:space-y-6">
+    <div className="min-h-screen bg-[#070A10] text-slate-100 flex items-center justify-center p-4 font-sans relative overflow-hidden">
+      {/* Dynamic Glows */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[520px] h-[520px] bg-amber-500/10 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-10 right-10 w-80 h-80 bg-orange-500/5 rounded-full blur-[100px] pointer-events-none" />
+
+      <div className="w-full max-w-md bg-slate-900/90 backdrop-blur-2xl border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl relative z-10 space-y-6">
         {/* Brand Header */}
-        <div className="flex flex-col items-center text-center space-y-2.5 sm:space-y-3">
-          <AppLogo variant="full" size="xl" subtitle="Franchise Management" />
-          <p className="text-xs text-slate-400 pt-1">Franchise Owner & Multi-Branch Portal</p>
-        </div>
-
-        {/* Continue with Google Button */}
-        <button
-          type="button"
-          onClick={handleGoogleSignIn}
-          disabled={googleLoading || loading}
-          className="w-full py-3 px-4 rounded-xl bg-white hover:bg-slate-100 text-slate-950 font-bold text-xs flex items-center justify-center gap-2.5 transition-all shadow-md shadow-white/5 active:scale-98 disabled:opacity-50 cursor-pointer"
-        >
-          {googleLoading ? (
-            <span>Connecting with Google...</span>
-          ) : (
-            <>
-              <svg className="w-4 h-4" viewBox="0 0 24 24">
-                <path
-                  fill="#4285F4"
-                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                />
-                <path
-                  fill="#34A853"
-                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                />
-                <path
-                  fill="#FBBC05"
-                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                />
-                <path
-                  fill="#EA4335"
-                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                />
-              </svg>
-              <span>Continue with Google (Franchise Partner)</span>
-            </>
-          )}
-        </button>
-
-        {/* Credential Selection Prompt */}
-        <div className="space-y-2 pt-1">
-          <label className="text-xs font-bold text-slate-300 block text-center">
-            How would you like to log in?
-          </label>
-          <div className="grid grid-cols-2 gap-2 bg-slate-950 p-1.5 rounded-2xl border border-slate-800">
-            <button
-              type="button"
-              onClick={() => setAuthMethod('email')}
-              className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                authMethod === 'email' ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20' : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <User size={13} /> Email
-            </button>
-            <button
-              type="button"
-              onClick={() => setAuthMethod('phone')}
-              className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                authMethod === 'phone' ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20' : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <Phone size={13} /> Phone Number
-            </button>
+        <div className="text-center space-y-3">
+          <div className="flex justify-center">
+            <AppLogo size="lg" />
+          </div>
+          <div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[11px] font-semibold tracking-wide uppercase mb-2">
+              <Store className="w-3.5 h-3.5" />
+              Franchise Partner Portal
+            </div>
+            <h1 className="text-2xl font-black text-white tracking-tight">
+              {step === 'check' ? 'Franchise Partner Access' : 'Verify One-Time Code'}
+            </h1>
+            <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto leading-relaxed">
+              {step === 'check'
+                ? 'Verify your authorized Olive Pizza franchise credentials to receive your access code.'
+                : 'Enter the 6-digit code sent to your registered partner email address.'}
+            </p>
           </div>
         </div>
 
-        {/* Form: Email Option */}
-        {authMethod === 'email' && (
-          <form onSubmit={handleEmailLogin} className="space-y-4 text-xs">
-            <div>
-              <label className="font-bold text-slate-300 block mb-1 flex items-center gap-1.5">
-                <User size={13} className="text-amber-400" /> Franchise Account Email
-              </label>
-              <input
-                type="email"
-                required
-                placeholder="franchise@olivepizza.in"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500"
-              />
+        {/* Global Error Notice */}
+        {error && (
+          <div className="p-3.5 rounded-2xl bg-red-950/40 border border-red-500/30 flex items-start gap-3 text-red-200 text-xs animate-in fade-in slide-in-from-top-1 duration-200">
+            <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+            <div className="flex-1 leading-relaxed">{error}</div>
+          </div>
+        )}
+
+        {/* STEP 1: ELIGIBILITY PRE-CHECK */}
+        {step === 'check' && (
+          <form onSubmit={handleCheckEligibility} className="space-y-5">
+            {/* Verification Method Tabs */}
+            <div className="grid grid-cols-2 p-1 bg-slate-950/80 border border-slate-800 rounded-2xl">
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMethod('email');
+                  setError(null);
+                }}
+                className={`flex items-center justify-center gap-2 py-2.5 text-xs font-semibold rounded-xl transition-all ${
+                  authMethod === 'email'
+                    ? 'bg-slate-800 text-white shadow-md'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Mail className="w-3.5 h-3.5" />
+                Email Address
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMethod('phone');
+                  setError(null);
+                }}
+                className={`flex items-center justify-center gap-2 py-2.5 text-xs font-semibold rounded-xl transition-all ${
+                  authMethod === 'phone'
+                    ? 'bg-slate-800 text-white shadow-md'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Phone className="w-3.5 h-3.5" />
+                Phone Number
+              </button>
             </div>
 
-            <div>
-              <label className="font-bold text-slate-300 block mb-1 flex items-center gap-1.5">
-                <Key size={13} className="text-amber-400" /> Password
+            {/* Input Field */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider block">
+                {authMethod === 'email' ? 'Registered Franchise Email' : 'Registered Partner Mobile'}
               </label>
-              <input
-                type="password"
-                required
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500"
-              />
+              <div className="relative">
+                {authMethod === 'email' ? (
+                  <>
+                    <input
+                      type="email"
+                      value={identifierInput}
+                      onChange={e => setIdentifierInput(e.target.value)}
+                      placeholder="e.g. franchise@olivepizza.com or webhub2811@gmail.com"
+                      autoFocus
+                      required
+                      className="w-full pl-10 pr-4 py-3 bg-slate-950/80 border border-slate-800 rounded-2xl text-white text-sm placeholder-slate-500 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all font-mono"
+                    />
+                    <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  </>
+                ) : (
+                  <>
+                    <div className="absolute left-3.5 top-1/2 -translate-y-1/2 flex items-center gap-1 text-xs text-slate-400 font-semibold border-r border-slate-800 pr-2.5">
+                      <span>🇮🇳</span>
+                      <span>+91</span>
+                    </div>
+                    <input
+                      type="tel"
+                      value={identifierInput}
+                      onChange={e => setIdentifierInput(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                      placeholder="10-digit registered number"
+                      autoFocus
+                      required
+                      className="w-full pl-20 pr-4 py-3 bg-slate-950/80 border border-slate-800 rounded-2xl text-white text-sm placeholder-slate-500 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all font-mono"
+                    />
+                  </>
+                )}
+              </div>
             </div>
 
+            {/* Security Notice */}
+            <div className="p-3 rounded-2xl bg-slate-950/60 border border-slate-800 flex items-center gap-2.5 text-[11px] text-slate-400">
+              <Lock className="w-4 h-4 text-amber-500 shrink-0" />
+              <span>Passwordless verification. A 6-digit one-time code will be dispatched to your authorized email.</span>
+            </div>
+
+            {/* Action Submit */}
             <button
               type="submit"
-              disabled={loading}
-              className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-black text-sm rounded-xl transition-all shadow-lg shadow-amber-500/20 active:scale-98 flex items-center justify-center gap-2 mt-2 disabled:opacity-50 cursor-pointer"
+              disabled={isLoading || !identifierInput.trim()}
+              className="w-full py-3.5 px-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-bold text-sm rounded-2xl transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 cursor-pointer"
             >
-              <Sparkles size={16} /> {loading ? 'Authenticating...' : 'Sign In to Franchise Portal'}
+              {isLoading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                  <span>Verifying Account...</span>
+                </>
+              ) : (
+                <>
+                  <span>Verify Account & Continue</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
             </button>
           </form>
         )}
 
-        {/* Form: Phone Option */}
-        {authMethod === 'phone' && (
-          <div className="space-y-4 text-xs">
-            <div id="phone-recaptcha-container" />
-            {!otpSent ? (
-              <form onSubmit={handleSendPhoneOtp} className="space-y-4">
-                <div>
-                  <label className="font-bold text-slate-300 block mb-1 flex items-center gap-1.5">
-                    <Phone size={13} className="text-amber-400" /> Registered Mobile Number
-                  </label>
-                  <div className="flex gap-2">
-                    <span className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-slate-400 flex items-center font-mono">
-                      +91
-                    </span>
-                    <input
-                      type="tel"
-                      required
-                      placeholder="9876543210"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500"
-                    />
-                  </div>
+        {/* STEP 2: TEMPORARY 6-DIGIT CODE VERIFICATION */}
+        {step === 'verify' && (
+          <form onSubmit={handleVerifyCode} className="space-y-6">
+            {/* Masked Email Info Pill */}
+            <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+                  <Mail className="w-4 h-4" />
                 </div>
+                <div className="truncate">
+                  <p className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider">Sent to verified email</p>
+                  <p className="text-xs font-mono font-bold text-white truncate">{maskedEmail}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setStep('check');
+                  setError(null);
+                }}
+                className="text-[11px] font-semibold text-amber-400 hover:text-amber-300 hover:underline shrink-0 flex items-center gap-1"
+              >
+                <ArrowLeft className="w-3 h-3" />
+                Change
+              </button>
+            </div>
 
-                <button
-                  type="submit"
-                  disabled={phoneLoading}
-                  className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-black text-sm rounded-xl transition-all shadow-lg shadow-amber-500/20 active:scale-98 flex items-center justify-center gap-2 mt-2 disabled:opacity-50 cursor-pointer"
-                >
-                  <Sparkles size={16} /> {phoneLoading ? 'Sending SMS Code...' : 'Send SMS Verification Code'}
-                </button>
-              </form>
-            ) : (
-              <form onSubmit={handleVerifyPhoneOtp} className="space-y-4">
-                <div>
-                  <label className="font-bold text-slate-300 block mb-1 flex items-center gap-1.5">
-                    <Key size={13} className="text-amber-400" /> 6-Digit SMS Verification Code
-                  </label>
+            {/* 6-Digit Code Inputs */}
+            <div className="space-y-2">
+              <label className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider block text-center">
+                Enter 6-Digit Verification Code
+              </label>
+              <div className="flex justify-between gap-2 sm:gap-3" onPaste={handlePaste}>
+                {code.map((digit, idx) => (
                   <input
+                    key={idx}
+                    ref={el => { inputRefs.current[idx] = el; }}
                     type="text"
-                    required
-                    maxLength={6}
-                    placeholder="123456"
-                    value={phoneOtp}
-                    onChange={(e) => setPhoneOtp(e.target.value.replace(/\D/g, ''))}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-center text-xl font-mono text-amber-400 tracking-widest focus:outline-none focus:border-amber-500"
+                    inputMode="numeric"
+                    maxLength={1}
+                    value={digit}
+                    onChange={e => handleDigitChange(idx, e.target.value)}
+                    onKeyDown={e => handleKeyDown(idx, e)}
+                    className="w-12 h-14 sm:w-14 sm:h-16 text-center text-xl sm:text-2xl font-black font-mono bg-slate-950 border-2 border-slate-800 focus:border-amber-500 focus:ring-4 focus:ring-amber-500/20 rounded-2xl text-white outline-none transition-all"
                   />
-                </div>
+                ))}
+              </div>
+            </div>
 
+            {/* Resend Code Section */}
+            <div className="flex items-center justify-between text-xs text-slate-400 px-1">
+              <span>Didn't receive the code?</span>
+              {resendCooldown > 0 ? (
+                <span className="font-mono text-amber-400 font-semibold">
+                  Resend in {resendCooldown}s
+                </span>
+              ) : (
                 <button
-                  type="submit"
-                  disabled={phoneLoading}
-                  className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-black text-sm rounded-xl transition-all shadow-lg shadow-amber-500/20 active:scale-98 flex items-center justify-center gap-2 mt-2 disabled:opacity-50 cursor-pointer"
+                  type="button"
+                  onClick={handleResendCode}
+                  disabled={isResending}
+                  className="font-bold text-amber-400 hover:text-amber-300 transition-colors flex items-center gap-1 cursor-pointer"
                 >
-                  <Sparkles size={16} /> {phoneLoading ? 'Verifying...' : 'Verify & Sign In'}
+                  <RotateCcw className={`w-3.5 h-3.5 ${isResending ? 'animate-spin' : ''}`} />
+                  Resend Code
                 </button>
-              </form>
-            )}
-          </div>
+              )}
+            </div>
+
+            {/* Action Verify Submit */}
+            <button
+              type="submit"
+              disabled={isLoading || code.some(d => !d)}
+              className="w-full py-3.5 px-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-bold text-sm rounded-2xl transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 cursor-pointer"
+            >
+              {isLoading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                  <span>Verifying Code...</span>
+                </>
+              ) : (
+                <>
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>Verify & Enter Franchise Portal</span>
+                </>
+              )}
+            </button>
+          </form>
         )}
 
-        <div className="pt-2 border-t border-slate-800/80 text-center">
-          <p className="text-[10px] text-slate-500 flex items-center justify-center gap-1">
-            <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
-            Franchise Multi-Tenancy Scoped & Protected
+        {/* Security Footer Notice */}
+        <div className="pt-2 text-center border-t border-slate-800">
+          <p className="text-[10px] text-slate-500 flex items-center justify-center gap-1.5">
+            <ShieldCheck className="w-3.5 h-3.5 text-amber-500" />
+            Olive Pizza Zero-Trust Architecture • Encrypted Session
           </p>
         </div>
       </div>
-
-      {/* Security PIN Entry Modal */}
-      {showPinModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-5 text-center">
-            <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto text-amber-400">
-              <Lock className="w-6 h-6" />
-            </div>
-
-            <div>
-              <h3 className="text-lg font-black text-white">Security PIN Verification</h3>
-              <p className="text-xs text-slate-400 mt-1">
-                Enter your 4 to 6 digit manager security PIN to access this franchise terminal.
-              </p>
-            </div>
-
-            <form onSubmit={handlePinSubmit} className="space-y-4">
-              <input
-                type="password"
-                maxLength={6}
-                inputMode="numeric"
-                pattern="[0-9]*"
-                autoFocus
-                required
-                placeholder="••••"
-                value={pinInput}
-                onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ''))}
-                className="w-full bg-slate-950 border border-slate-700 rounded-2xl px-4 py-3.5 text-center text-2xl tracking-[0.5em] font-mono text-amber-400 focus:outline-none focus:border-amber-500"
-              />
-
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowPinModal(false);
-                    setPinInput('');
-                    signOut(auth).catch(() => {});
-                  }}
-                  className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={pinLoading || pinInput.length < 4}
-                  className="flex-1 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl transition disabled:opacity-50 cursor-pointer shadow-lg shadow-amber-500/20"
-                >
-                  {pinLoading ? 'Verifying...' : 'Unlock'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
