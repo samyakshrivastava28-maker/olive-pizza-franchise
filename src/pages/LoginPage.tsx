@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useFranchiseStore } from '../store/franchiseStore';
 import { auth } from '../lib/firebase';
-import { signInWithCustomToken } from 'firebase/auth';
+import { signInWithCustomToken, signOut } from 'firebase/auth';
 import { 
   Mail, 
   Phone, 
@@ -39,7 +39,7 @@ export const LoginPage: React.FC = () => {
 
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const navigate = useNavigate();
-  const { session, isAuthorized, clearRestricted } = useFranchiseStore();
+  const { session, isAuthorized } = useFranchiseStore();
 
   // Redirect if already logged in
   useEffect(() => {
@@ -47,11 +47,6 @@ export const LoginPage: React.FC = () => {
       navigate('/dashboard', { replace: true });
     }
   }, [isAuthorized, session, navigate]);
-
-  // Clear any existing restricted blocks on mount
-  useEffect(() => {
-    clearRestricted();
-  }, [clearRestricted]);
 
   // Countdown timer for code resend
   useEffect(() => {
@@ -253,23 +248,81 @@ export const LoginPage: React.FC = () => {
       const user = userCredential.user;
       const u = resp.user || {};
 
+      // Enforce fail-closed authorization check against PostgreSQL app_users grants
+      const allowedApps: string[] = Array.isArray(u.allowedApps) ? u.allowedApps : [];
+      const hasActiveGrant = allowedApps.includes('FRANCHISE_MANAGER');
+      const authoritativeFranchiseId = (typeof u.franchiseId === 'string' && u.franchiseId.trim()) ? u.franchiseId.trim() : null;
+      const userRole = (typeof u.role === 'string' ? u.role : '').toLowerCase().trim();
+      const hasValidRole = userRole === 'franchise_manager' || userRole === 'owner';
+
+      // Resolve branch IDs strictly from PostgreSQL app_users (no fallback to 'branch_rjn_main')
+      const authoritativeBranchIds: string[] = Array.isArray(u.branchIds) && u.branchIds.length > 0
+        ? u.branchIds
+        : (typeof u.branchId === 'string' && u.branchId.trim() ? [u.branchId.trim()] : []);
+
+      // If missing role, active grant, or franchise assignment: Fail Closed
+      if (!hasActiveGrant || !authoritativeFranchiseId || !hasValidRole) {
+        let reason = 'Access denied: This account is not authorized for Franchise Management.';
+        if (!hasActiveGrant) {
+          reason = 'Access denied: Your account lacks an explicit active grant for FRANCHISE_MANAGER in PostgreSQL app_users.';
+        } else if (!authoritativeFranchiseId) {
+          reason = 'Access denied: No authoritative franchise scope assigned to your account in PostgreSQL app_users.';
+        } else if (!hasValidRole) {
+          reason = `Access denied: Role "${u.role || 'unassigned'}" is not authorized to access Franchise Management.`;
+        }
+
+        console.warn('[LoginPage] Fail-closed authorization rejection:', {
+          email: user.email || verifiedEmail,
+          role: u.role,
+          hasActiveGrant,
+          franchiseId: u.franchiseId,
+          allowedApps
+        });
+
+        // Sign out of Firebase Auth to ensure no lingering credentials
+        await signOut(auth).catch(() => {});
+        localStorage.removeItem('franchise_id');
+        sessionStorage.clear();
+
+        useFranchiseStore.setState({
+          user: null,
+          session: null,
+          isAuthorized: false,
+          isAuthChecking: false,
+          isDatabaseUnavailable: false,
+          restrictedReason: reason,
+          restrictedEmail: (user.email || verifiedEmail).toLowerCase().trim(),
+          authStatus: u.status === 'PENDING' ? 'PENDING_OWNER_APPROVAL' : (u.status === 'REJECTED' ? 'ACCOUNT_REJECTED' : null)
+        });
+
+        setError(reason);
+        toast.error(reason);
+        setIsLoading(false);
+        return;
+      }
+
+      // Authorized session setup strictly from PostgreSQL app_users grants
       useFranchiseStore.setState({
         user,
         session: {
           uid: user.uid,
           email: user.email || verifiedEmail,
           role: (u.role === 'owner' ? 'owner' : 'franchise_manager') as any,
-          franchiseId: u.franchiseId || 'fra_rajnandgaon',
-          franchiseName: 'Olive Pizza — Rajnandgaon HQ',
-          branchIds: [u.branchId || 'branch_rjn_main'],
+          franchiseId: authoritativeFranchiseId,
+          franchiseName: u.franchiseName || 'Olive Pizza Franchise',
+          branchIds: authoritativeBranchIds,
           isAuthenticated: true,
-          allowedApps: u.allowedApps || ['FRANCHISE_MANAGER', 'RESTAURANT_MANAGER', 'POS', 'DELIVERY', 'OWNER']
+          allowedApps: allowedApps
         },
         isAuthorized: true,
         isAuthChecking: false,
         restrictedReason: null,
-        restrictedEmail: null
+        restrictedEmail: null,
+        authStatus: 'APPROVED'
       });
+
+      localStorage.setItem('franchise_id', authoritativeFranchiseId);
+      useFranchiseStore.getState().fetchBranches();
 
       toast.success(`Welcome back, ${u.name || resolvedName || 'Partner'}!`);
       requestPostLoginNotificationPermissions().catch(() => {});

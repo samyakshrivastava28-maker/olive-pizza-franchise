@@ -305,7 +305,7 @@ export const DeliveryManagementPage: React.FC = () => {
                 <button
                   onClick={() => {
                     setReassignRider(r);
-                    setTargetBranchId(r.branchId || (branches[0]?.id || 'main_branch'));
+                    setTargetBranchId(r.branchId || (branches[0]?.id || 'branch_rjn_main'));
                     setReassignReason('');
                   }}
                   className="px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 bg-slate-800 text-slate-300 hover:text-amber-400 hover:bg-slate-700"
@@ -362,7 +362,7 @@ export const DeliveryManagementPage: React.FC = () => {
                     ))
                   ) : (
                     <>
-                      <option value="main_branch">Main Branch (main_branch)</option>
+                      <option value="branch_rjn_main">Main Branch (branch_rjn_main)</option>
                       <option value="branch_01">Branch 01 (branch_01)</option>
                       <option value="branch_02">Branch 02 (branch_02)</option>
                     </>

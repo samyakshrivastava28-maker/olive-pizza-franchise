@@ -14,10 +14,22 @@ import { RestaurantManagementPage } from './pages/RestaurantManagementPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { LoginPage } from './pages/LoginPage';
+import { AppRestrictedScreen } from './components/common/AppRestrictedScreen';
 import FranchisePushNotificationManager from './services/FranchisePushNotificationManager';
 
 export function App() {
-  const { session, isAuthChecking, isDatabaseUnavailable, user, initAuth } = useFranchiseStore();
+  const { 
+    session, 
+    isAuthChecking, 
+    isAuthorized,
+    isDatabaseUnavailable, 
+    user, 
+    initAuth,
+    restrictedReason,
+    restrictedEmail,
+    authStatus,
+    logout
+  } = useFranchiseStore();
 
   useEffect(() => {
     const unsub = initAuth();
@@ -56,6 +68,24 @@ export function App() {
     );
   }
 
+  // Authoritative Restriction / Access Denied Screen (Fail-Closed)
+  if (!isAuthorized && (restrictedReason || authStatus === 'PENDING_OWNER_APPROVAL' || authStatus === 'ACCOUNT_REJECTED' || authStatus === 'ACCOUNT_DEACTIVATED')) {
+    return (
+      <AppRestrictedScreen
+        appName="Olive Pizza Franchise Management"
+        userEmail={restrictedEmail || user?.email || undefined}
+        reason={restrictedReason || undefined}
+        status={authStatus}
+        onRetry={() => {
+          initAuth();
+        }}
+        onSignOut={async () => {
+          await logout();
+        }}
+      />
+    );
+  }
+
   return (
     <HashRouter>
       <FranchisePushNotificationManager />
@@ -80,6 +110,23 @@ export function App() {
 
       <Routes>
         <Route path="/login" element={session ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
+        <Route
+          path="/restricted"
+          element={
+            <AppRestrictedScreen
+              appName="Olive Pizza Franchise Management"
+              userEmail={restrictedEmail || user?.email || undefined}
+              reason={restrictedReason || undefined}
+              status={authStatus}
+              onRetry={() => {
+                initAuth();
+              }}
+              onSignOut={async () => {
+                await logout();
+              }}
+            />
+          }
+        />
         
         <Route element={<FranchiseLayout />}>
           <Route path="/dashboard" element={<DashboardPage />} />

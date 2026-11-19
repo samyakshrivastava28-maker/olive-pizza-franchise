@@ -14,6 +14,7 @@ import {
   Store
 } from 'lucide-react';
 import { fetchApi, fetchBranchMenuManagement, fetchMasterCatalog, invalidateMenuCache, CLIENT_CACHE_TTL } from '../lib/api';
+import { useFranchiseStore } from '../store/franchiseStore';
 import toast from 'react-hot-toast';
 
 interface MenuItem {
@@ -37,7 +38,17 @@ export const MenuPricingPage: React.FC = () => {
   const [modalEnabled, setModalEnabled] = useState<boolean>(true);
   const [isSaving, setIsSaving] = useState(false);
 
-  const activeBranchId = localStorage.getItem('active_branch_id') || 'main_branch';
+  const { branches, session } = useFranchiseStore();
+  const rawBranchId = localStorage.getItem('active_branch_id');
+  const activeBranchId = (rawBranchId && rawBranchId !== 'main_branch')
+    ? rawBranchId
+    : (branches[0]?.id || session?.branchIds?.[0] || 'branch_rjn_main');
+
+  useEffect(() => {
+    if (localStorage.getItem('active_branch_id') === 'main_branch') {
+      localStorage.setItem('active_branch_id', 'branch_rjn_main');
+    }
+  }, []);
 
   const loadMenu = async (force = false) => {
     setLoading(true);

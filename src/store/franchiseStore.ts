@@ -307,11 +307,15 @@ export const useFranchiseStore = create<FranchiseState>((set, get) => ({
       console.warn('[FranchiseStore] Logout error:', e);
     }
     localStorage.removeItem('franchise_id');
+    sessionStorage.clear();
     set({
       user: null,
       session: null,
       isAuthChecking: false,
-      isAuthorized: false
+      isAuthorized: false,
+      restrictedReason: null,
+      restrictedEmail: null,
+      authStatus: null
     });
   }
 }));
